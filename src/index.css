@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/* Dark mode is class-driven, not media-driven: light is the default until the
+   user explicitly chooses otherwise (suite rule), so `.dark` on <html> is the
+   only trigger. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+#root {
+  min-height: 100%;
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Addresses, bank details and descriptions are free text: a long unbroken
+     string must wrap rather than widen the page. */
+  overflow-wrap: break-word;
+}
+
+/* The page gutter, which is also the `viewport-fit=cover` safe area (the
+   PalsPayIn pattern): px-4 / sm:px-6 / lg:px-8 widened by the insets. */
+.gutter {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+@media (min-width: 40rem) {
+  .gutter {
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+  }
+}
+
+@media (min-width: 64rem) {
+  .gutter {
+    padding-left: max(2rem, env(safe-area-inset-left));
+    padding-right: max(2rem, env(safe-area-inset-right));
+  }
+}
+
+/* Amount columns line up or the table reads as noise. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* iOS Safari zooms in on a focused control under 16px and never zooms back
+   out. Touch devices get a 16px floor on every control; the `!important` has
+   to beat utilities on the element and the SDK chrome's inline styles. */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range'])
+       :not([type='color']):not([type='file']):not([type='button'])
+       :not([type='submit']):not([type='reset']),
+  textarea,
+  select {
+    font-size: max(16px, 1em) !important;
+  }
+}

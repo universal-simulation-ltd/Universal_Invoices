@@ -1,0 +1,42 @@
+# Push to main → test → build → wrangler deploy (Worker: static assets only).
+# Same token as the portal's workflow; account_id is hardcoded in
+# wrangler.jsonc so the token doesn't need "User Details: Read".
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # ⚠️ PINNED EXACTLY, not the '4' major range it used to be.
+          #
+          # On 2026-08-11 `wrangler@4` resolved to 4.121.0, which declares a
+          # dependency on `miniflare@5.20260804.1-alpha` — a version that was
+          # not on npm at the time. `npm i wrangler@4` died with ETARGET and
+          # every deploy in the suite on the floating range broke at once, with
+          # nothing wrong in any repo. (That miniflare has since been
+          # published, so the breakage is latent rather than live — which is
+          # exactly the point: a floating major is a standing dependency on
+          # someone else's publish going out cleanly, and Cloudflare ships a
+          # wrangler most days.)
+          #
+          # 4.120.1 is what the portal and the marketing site deploy with.
+          # Bump this deliberately, after checking
+          # `npm view wrangler@<v> dependencies.miniflare` resolves.
+          wranglerVersion: '4.120.1'
+          command: deploy

@@ -1,0 +1,18 @@
+// Universal Invoices — Cloudflare Worker: static assets only, no worker script.
+//
+// A NEW Universal App starts on Workers static assets, not Pages (standing
+// policy, 2026-08-06). The portal Worker proxies
+// opensource.unisim.co.uk/invoices/* here. Nothing is stored server-side:
+// documents, clients and the catalogue live in the visitor's IndexedDB.
+// `assets.directory` must NEVER be "." — that uploads .git/ to the edge.
+{
+  "name": "universal-invoices",
+  // Hardcoded so CI tokens don't need "User Details: Read" (same as the portal).
+  "account_id": "12fb850ff7cd52f3ef0244b1837e3008",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": false },
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}

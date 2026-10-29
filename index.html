@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icon-180.png" />
+    <title>Universal Invoices — quotes, pro formas and invoices as PDFs, no account</title>
+    <meta
+      name="description"
+      content="Make quotes, estimates, pro formas, invoices and delivery notes as clean PDFs. Your companies, clients and catalogue stay in your browser: no account, no subscription, nothing uploaded."
+    />
+    <meta name="keywords" content="invoice generator, quote generator, devis, facture, pro forma invoice, delivery note, free invoicing, no account, open source" />
+    <meta name="author" content="UNI·SIM" />
+    <meta name="theme-color" content="#0f172a" />
+    <link rel="canonical" href="https://opensource.unisim.co.uk/invoices/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Universal Invoices" />
+    <meta property="og:title" content="Universal Invoices — quotes, pro formas and invoices as PDFs, no account" />
+    <meta property="og:description" content="Quotes, pro formas, invoices and delivery notes as clean PDFs. No account, nothing uploaded." />
+    <meta property="og:url" content="https://opensource.unisim.co.uk/invoices/" />
+    <meta property="og:image" content="https://opensource.unisim.co.uk/invoices/icon-512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:locale" content="en_GB" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Universal Invoices — quotes and invoices as PDFs" />
+    <meta name="twitter:description" content="Quotes, pro formas, invoices and delivery notes as clean PDFs. No account, nothing uploaded." />
+    <meta name="twitter:image" content="https://opensource.unisim.co.uk/invoices/icon-512.png" />
+    <!-- Structured data. The credit James asked for on 2026-09-05 lives in two
+         places, and this is the one a search engine can read: the in-app line
+         is in the SDK's <AboutAppDialog>, which is a React portal and only
+         enters the DOM once somebody opens it, so a crawler never sees it.
+
+         Every value below is taken from THIS FILE's own <title>, description
+         and canonical rather than typed again, so the block cannot drift from
+         what the page already says about itself. The author matches the app's
+         marketing page on unisim.co.uk and points at the same /about-james,
+         so both resolve to one person rather than two mentions of a name. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Universal Invoices",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web browser",
+      "url": "https://opensource.unisim.co.uk/invoices/",
+      "description": "Quotes, pro formas, invoices and delivery notes as clean PDFs. No account, nothing uploaded.",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "GBP"
+      },
+      "author": [
+        {
+          "@type": "Person",
+          "name": "James Markey",
+          "honorificSuffix": "MBE",
+          "jobTitle": "Founder & Director",
+          "url": "https://www.unisim.co.uk/about-james"
+        },
+        {
+          "@type": "Organization",
+          "name": "UNI·SIM",
+          "url": "https://www.unisim.co.uk",
+          "subjectOf": {
+            "@type": "BlogPosting",
+            "name": "Welcome to the UNI·SIM studio",
+            "url": "https://www.unisim.co.uk/blog/welcome-to-uni-sim"
+          }
+        }
+      ],
+      "provider": {
+        "@type": "Organization",
+        "name": "UNI·SIM",
+        "url": "https://www.unisim.co.uk"
+      }
+    }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

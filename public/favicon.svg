@@ -1,0 +1,18 @@
+<!-- GENERATED FILE — do not edit by hand.
+     Source: backoffice/universal-platform/scripts/app-marks/marks.mjs
+     Regenerate: node scripts/app-marks/build.mjs (from backoffice/universal-platform)
+     Mark: Universal Invoices — A torn-off receipt: the items, then the total. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Universal Invoices">
+  <defs>
+    <linearGradient id="u-invoices-tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fe8c01"/>
+      <stop offset="1" stop-color="#e05504"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#u-invoices-tile)"/>
+  <polygon points="13,6 51,6 51,56 46.25,51.5 41.5,56 36.75,51.5 32,56 27.25,51.5 22.5,56 17.75,51.5 13,56" fill="#ffffff"/>
+  <rect x="19" y="13" width="26" height="4" rx="2" fill="#fdba74"/>
+  <rect x="19" y="21" width="18" height="4" rx="2" fill="#fdba74"/>
+  <rect x="19" y="29" width="22" height="4" rx="2" fill="#fdba74"/>
+  <rect x="19" y="38" width="26" height="6.5" rx="2" fill="#e05504"/>
+</svg>

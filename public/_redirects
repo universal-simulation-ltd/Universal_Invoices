@@ -1,0 +1,24 @@
+# The portal Worker proxies opensource.unisim.co.uk/invoices/* to this Worker
+# with the /invoices prefix intact, while the build output is flat. All 200s —
+# transparent rewrites, not redirects. (Missing at go-live, 2026-10-30: every
+# script came back as index.html and the real site loaded blank, while
+# workers.dev answered fine.)
+#
+# ⚠️ NO catch-all `/invoices/* /index.html 200` rule — Workers static assets
+# rejects it as an infinite loop (the asset layer strips `.html` itself).
+# Unmatched paths fall through to `not_found_handling: single-page-application`,
+# which serves index.html anyway.
+#
+# ⚠️ SO EVERY NEW FILE AT THE ROOT OF public/ NEEDS A LINE HERE.
+/invoices/sw.js                /sw.js                200
+/invoices/registerSW.js        /registerSW.js        200
+/invoices/manifest.webmanifest /manifest.webmanifest 200
+/invoices/workbox-*            /workbox-:splat       200
+/invoices/assets/*             /assets/:splat        200
+/invoices/favicon.svg          /favicon.svg          200
+/invoices/unisim-icon.png      /unisim-icon.png      200
+/invoices/icon-180.png         /icon-180.png         200
+/invoices/icon-192.png         /icon-192.png         200
+/invoices/icon-512.png         /icon-512.png         200
+/invoices/robots.txt           /robots.txt           200
+/invoices/sitemap.xml          /sitemap.xml          200

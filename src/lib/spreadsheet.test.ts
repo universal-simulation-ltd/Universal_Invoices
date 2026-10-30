@@ -4,6 +4,7 @@ import { exampleData } from './example';
 import { hubFieldsDiffer, liveFields, companyFromOrg, type OrgDetails } from './fromOrg';
 import { exportXlsx, planImport, selectionFor, toIsoDate, toNumber, toWorkbook } from './spreadsheet';
 import { readXlsx, writeXlsx } from './xlsx';
+import { codeFromFileName } from './picture';
 
 /** The example, made real — the export leaves examples out — with a picture on everything. */
 function realData(): Dataset {
@@ -151,5 +152,13 @@ describe('the live Universal ID company', () => {
     const c = companyFromOrg(org, undefined, 'James', () => 'c1');
     expect(hubFieldsDiffer(companyFromOrg(org, c, 'James', () => 'x'), c)).toBe(false);
     expect(hubFieldsDiffer(companyFromOrg({ ...org, address_lines: ['Paris'] }, c, 'James', () => 'x'), c)).toBe(true);
+  });
+});
+
+describe('pictures to products', () => {
+  it('the code is the file name less its extension', () => {
+    expect(codeFromFileName('SKU-123.jpg')).toBe('SKU-123');
+    expect(codeFromFileName('Arm v2.final.PNG')).toBe('Arm v2.final');
+    expect(codeFromFileName('no-extension')).toBe('no-extension');
   });
 });

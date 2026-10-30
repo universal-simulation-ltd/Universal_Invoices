@@ -35,6 +35,8 @@ interface AppState {
   saveCompany: (c: Company) => Promise<void>;
   saveClient: (c: Client) => Promise<void>;
   saveProduct: (p: Product) => Promise<void>;
+  /** Several new catalogue items at once (the add-many rows, a drop of pictures). */
+  addProducts: (rows: Product[]) => Promise<void>;
   /**
    * The live Universal ID company (OrgSync.tsx): saved quietly — no notice,
    * and never the "register your company first" document that saveCompany
@@ -173,6 +175,14 @@ export const useAppStore = create<AppState>((set, get) => {
     },
     saveClient: (c) => saveRow('clients', c),
     saveProduct: (p) => saveRow('products', p),
+    addProducts: async (rows) => {
+      if (!rows.length) return;
+      const now = Date.now();
+      const fresh = rows.map((r) => ({ ...r, updatedAt: now }));
+      set({ products: [...get().products, ...fresh] });
+      await putMany({ companies: [], clients: [], products: fresh, documents: [] });
+      await dropExample('products');
+    },
     syncCompany: (c) => saveRow('companies', c),
     duplicateRow: async (table, id) => {
       const rows = get()[table] as Rows[typeof table][];

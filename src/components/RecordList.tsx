@@ -25,6 +25,9 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
   onDuplicate,
   live,
   onExport,
+  onAdd,
+  adding,
+  onDropFiles,
 }: {
   rows: T[];
   make: () => T;
@@ -46,7 +49,14 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
   live?: (row: T) => boolean;
   /** "Export to spreadsheet" for the ticked rows. */
   onExport?: (ids: string[]) => void;
+  /** Replaces the one-row "Add a …" form with the list's own (the catalogue's add-many rows). */
+  onAdd?: () => void;
+  /** That form, while it is open — shown where the one-row form would be. */
+  adding?: ReactNode;
+  /** Files dropped on a row's card (a picture for that product). */
+  onDropFiles?: (row: T, files: File[]) => void;
 }) {
+  const [dropOn, setDropOn] = useState<string | null>(null);
   const [draft, setDraft] = useState<T | null>(null);
   const isNew = draft !== null && !rows.some((r) => r.id === draft.id);
   const sel = useSelection(rows.map((r) => r.id));
@@ -113,13 +123,14 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <button type="button" className={btnPrimary} disabled={draft !== null} onClick={() => setDraft(make())}>
+        <button type="button" className={btnPrimary} disabled={draft !== null || !!adding} onClick={() => (onAdd ? onAdd() : setDraft(make()))}>
           Add a {noun}
         </button>
         {!draft && <SelectionBar sel={sel} total={rows.length} noun={noun} onDelete={onDelete} onExport={onExport} />}
       </div>
       {isNew && draft && editor(draft)}
-      {rows.length === 0 && !draft && (
+      {adding}
+      {rows.length === 0 && !draft && !adding && (
         <EmptyState
           title={`No ${noun}s yet`}
           action={
@@ -145,7 +156,27 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
               type="button"
               disabled={draft !== null}
               onClick={() => setDraft(structuredClone(row))}
-              className={`${card} ${row.example ? exampleBorder : ''} ${live?.(row) ? liveBorder : ''} block min-w-0 flex-1 text-left hover:border-orange-300 disabled:opacity-60 dark:hover:border-orange-800`}
+              onDragOver={
+                onDropFiles &&
+                ((e) => {
+                  if (!e.dataTransfer.types.includes('Files')) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDropOn(row.id);
+                })
+              }
+              onDragLeave={onDropFiles && (() => setDropOn(null))}
+              onDrop={
+                onDropFiles &&
+                ((e) => {
+                  if (!e.dataTransfer.files.length) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDropOn(null);
+                  onDropFiles(row, [...e.dataTransfer.files]);
+                })
+              }
+              className={`${card} ${row.example ? exampleBorder : ''} ${live?.(row) ? liveBorder : ''} ${dropOn === row.id ? 'ring-2 ring-orange-400' : ''} block min-w-0 flex-1 text-left hover:border-orange-300 disabled:opacity-60 dark:hover:border-orange-800`}
             >
               {row.example || live?.(row) ? (
                 <div className="flex items-start gap-3">

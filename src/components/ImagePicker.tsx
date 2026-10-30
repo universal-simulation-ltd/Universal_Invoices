@@ -1,21 +1,14 @@
 import { useRef, useState } from 'react';
-import { imageToJpeg } from '@unisim/doc';
+import { PICTURE_TYPES, isPicture, toStored } from '../lib/picture';
 import type { StoredImage } from '../lib/types';
 import { btnGhost } from './ui';
 
 /**
- * Turn a chosen picture into the JPEG the PDF embeds. Done ONCE, on choosing:
- * `imageToJpeg` fills white first (so a transparent PNG logo is not black in
- * the PDF) and caps the size, and storing the result means every preview after
- * that is just a re-layout.
+ * A picture box: click to choose, or drop a picture on it (James, 2026-10-30:
+ * "Allow them to drop an image in for a specific product"). A drop here stops
+ * at the box, so the Catalogue tab's "one product per picture" drop does not
+ * also fire.
  */
-async function toStored(file: File, maxEdge: number): Promise<StoredImage> {
-  const { jpeg, width, height } = await imageToJpeg(file, 0.88, maxEdge);
-  let binary = '';
-  for (let i = 0; i < jpeg.length; i += 0x8000) binary += String.fromCharCode(...jpeg.subarray(i, i + 0x8000));
-  return { dataUrl: `data:image/jpeg;base64,${btoa(binary)}`, width, height };
-}
-
 export default function ImagePicker({
   value,
   onChange,
@@ -32,17 +25,47 @@ export default function ImagePicker({
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
   const size = compact ? 'h-10 w-10' : 'h-20 w-36';
+  const take = async (file: File | undefined) => {
+    if (!file) return;
+    setError(null);
+    if (!isPicture(file)) {
+      setError('That is not a picture this can use. Try a PNG or JPEG.');
+      return;
+    }
+    try {
+      onChange(await toStored(file, maxEdge));
+    } catch {
+      setError('That picture could not be read. Try a PNG or JPEG.');
+    }
+  };
   return (
     <div className="flex items-center gap-3">
       <button
         type="button"
         onClick={() => input.current?.click()}
-        className={`${size} flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-dashed border-slate-300 bg-white text-xs text-slate-400 hover:border-orange-400 dark:border-slate-700 dark:bg-slate-900`}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes('Files')) return;
+          e.preventDefault();
+          e.stopPropagation();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          if (!e.dataTransfer.files.length) return;
+          e.preventDefault();
+          e.stopPropagation();
+          setOver(false);
+          void take([...e.dataTransfer.files].find(isPicture) ?? e.dataTransfer.files[0]);
+        }}
+        className={`${size} flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-dashed bg-white text-center text-xs text-slate-400 hover:border-orange-400 dark:bg-slate-900 ${
+          over ? 'border-orange-500 ring-2 ring-orange-300 dark:ring-orange-800' : 'border-slate-300 dark:border-slate-700'
+        }`}
         aria-label={value ? `Change ${label}` : `Add ${label}`}
-        title={value ? `Change ${label}` : `Add ${label}`}
+        title={value ? `Change ${label} — or drop a picture here` : `Add ${label} — or drop a picture here`}
       >
-        {value ? <img src={value.dataUrl} alt="" className="h-full w-full object-contain" /> : compact ? '+' : `Add ${label}`}
+        {value ? <img src={value.dataUrl} alt="" className="h-full w-full object-contain" /> : compact ? '+' : `Add or drop a ${label}`}
       </button>
       {!compact && value && (
         <button type="button" className={btnGhost} onClick={() => onChange(undefined)}>
@@ -53,18 +76,12 @@ export default function ImagePicker({
       <input
         ref={input}
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/gif"
+        accept={PICTURE_TYPES.join(',')}
         className="hidden"
-        onChange={async (e) => {
+        onChange={(e) => {
           const file = e.target.files?.[0];
           e.target.value = '';
-          if (!file) return;
-          setError(null);
-          try {
-            onChange(await toStored(file, maxEdge));
-          } catch {
-            setError('That picture could not be read. Try a PNG or JPEG.');
-          }
+          void take(file);
         }}
       />
     </div>

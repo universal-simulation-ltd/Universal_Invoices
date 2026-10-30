@@ -29,9 +29,15 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
 
 ## Privacy
 
-There is no account and no server. Your companies, clients, catalogue and
-documents live in this browser's IndexedDB, and the PDF is made on your device.
-Clearing the site's data deletes them — back up from the menu.
+No account is needed, and there is no server for your documents. Your
+companies, clients, catalogue and documents live in this browser's IndexedDB,
+and the PDF is made on your device. Clearing the site's data deletes them —
+back up from Advanced.
+
+Signing in with a Universal ID is optional. It brings your Tuning, and
+**Use <company>** copies your company's Business details (address, VAT and
+registration numbers, bank details, logo, footer) from app.unisim.co.uk into
+this browser. Your documents are not uploaded either way.
 
 ## How it is built
 

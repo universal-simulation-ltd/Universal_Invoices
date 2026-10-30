@@ -8,6 +8,8 @@ import { todayIso } from '../../lib/numbering';
 import { useAppStore } from '../../stores/appStore';
 import { useThemeStore } from '../../stores/themeStore';
 import { saveSpreadsheet } from '../exportSheet';
+import { cloudControls } from '../CloudBackup';
+import { cloudMenu } from '../cloudText';
 
 // The per-app rows that slot into <UniversalAppsNavBar />'s `actions` prop —
 // ROWS ONLY, no trigger and no panel of its own. No Appearance rows: the
@@ -24,6 +26,7 @@ export default function AppMenu() {
   const backupJson = useAppStore((s) => s.backupJson);
   const restore = useAppStore((s) => s.restore);
   const importSpreadsheet = useAppStore((s) => s.importSpreadsheet);
+  const cloudRow = cloudMenu(useAppStore((s) => s.cloud));
   // The SDK rows are inline-styled, so they need the RESOLVED theme to match
   // a dark dropdown.
   const theme = useThemeStore((s) => s.effective);
@@ -42,6 +45,21 @@ export default function AppMenu() {
           noticesHref: 'https://github.com/universal-simulation-ltd/Universal_Invoices/blob/main/THIRD-PARTY-NOTICES.md',
         }}
       >
+        {cloudRow && (
+          <AdvancedMenuItem
+            theme={theme}
+            icon={<span aria-hidden>☁</span>}
+            label={cloudRow.label}
+            info={cloudRow.info}
+            onSelect={async () => {
+              if (cloudRow.action === 'on') cloudControls.turnOn?.();
+              else if (cloudRow.action === 'retry') cloudControls.syncNow?.();
+              else if (window.confirm('Turn off the online backup? The copy on your Universal ID is deleted; everything stays in this browser.')) {
+                await cloudControls.turnOff?.();
+              }
+            }}
+          />
+        )}
         <AdvancedMenuItem
           theme={theme}
           icon={<span aria-hidden>⤓</span>}

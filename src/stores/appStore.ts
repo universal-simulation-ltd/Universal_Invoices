@@ -3,6 +3,8 @@ import { makeBackup, mergeDataset, parseBackup } from '../lib/backup';
 import { convertDocument, duplicateDocument, newDocument, uid } from '../lib/convert';
 import { exampleData } from '../lib/example';
 import { exportXlsx, planImport, selectionFor } from '../lib/spreadsheet';
+import type { CloudMerge } from '../lib/cloud';
+import { recordDeleted } from '../lib/deletions';
 import { todayIso } from '../lib/numbering';
 import { loadAll, put, putMany, remove, removeMany, type Rows, type Table } from '../lib/store';
 import type { BusinessDocKind, Client, Company, InvoiceDoc, Product } from '../lib/types';
@@ -72,6 +74,21 @@ interface AppState {
    * would add and update, asks, then writes. Never deletes.
    */
   importSpreadsheet: (bytes: Uint8Array, confirm: (message: string) => boolean) => Promise<void>;
+  /** The online backup's state, for the menu and the footer (CloudBackup.tsx). */
+  cloud: CloudState;
+  setCloud: (patch: Partial<CloudState>) => void;
+  /** Bring another device's changes in from the online copy. Quiet: no notice. */
+  applyCloud: (merge: CloudMerge) => Promise<void>;
+}
+
+export interface CloudState {
+  status: 'off' | 'signed-out' | 'loading' | 'saving' | 'saved' | 'too-large' | 'error' | 'unavailable';
+  /** Epoch ms of the last upload or download that matched. */
+  at: number | null;
+  /** Size of the stored copy, and the account's limit (app_backup_limit()). */
+  bytes: number | null;
+  limit: number | null;
+  message: string | null;
 }
 
 const pending = new Map<string, ReturnType<typeof setTimeout>>();
@@ -153,6 +170,7 @@ export const useAppStore = create<AppState>((set, get) => {
     openId: null,
     notice: null,
     companyPrompt: null,
+    cloud: { status: 'signed-out', at: null, bytes: null, limit: null, message: null },
 
     init: async () => {
       const all = await loadAll();
@@ -202,6 +220,9 @@ export const useAppStore = create<AppState>((set, get) => {
     deleteMany: async (table, ids) => {
       if (!ids.length) return;
       const gone = new Set(ids);
+      // Remembered, so the online backup deletes them on other devices too.
+      // The examples are the app's own and never leave the browser.
+      recordDeleted(table, (get()[table] as { id: string; example?: boolean }[]).filter((r) => gone.has(r.id) && !r.example).map((r) => r.id));
       if (table === 'companies') {
         for (const c of get().companies) if (gone.has(c.id) && c.orgId) setOrgDismissed(c.orgId, true);
       }
@@ -313,6 +334,23 @@ export const useAppStore = create<AppState>((set, get) => {
       // A restored real row counts as making one: the examples of those kinds go.
       for (const table of ['companies', 'clients', 'products', 'documents'] as const) {
         if (write[table].some((r) => !r.example)) await dropExample(table);
+      }
+    },
+    setCloud: (patch) => set({ cloud: { ...get().cloud, ...patch } }),
+    applyCloud: async (merge) => {
+      const s = get();
+      const next = {} as Pick<AppState, 'companies' | 'clients' | 'products' | 'documents'>;
+      for (const table of ['companies', 'clients', 'products', 'documents'] as const) {
+        const gone = new Set(merge.remove[table]);
+        const rows = (s[table] as { id: string }[]).filter((r) => !gone.has(r.id));
+        (next as Record<string, unknown>)[table] = (merge.write[table] as { id: string }[]).reduce(upsert, rows);
+        if (gone.size) await removeMany(table, [...gone]);
+      }
+      await putMany(merge.write);
+      const openId = s.openId && merge.remove.documents.includes(s.openId) ? null : s.openId;
+      set({ ...next, openId });
+      for (const table of ['companies', 'clients', 'products', 'documents'] as const) {
+        if (merge.write[table].length) await dropExample(table);
       }
     },
     spreadsheet: (table, ids) => {

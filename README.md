@@ -39,7 +39,7 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
 
 ## Privacy
 
-No account is needed, and there is no server for your documents. Your
+No account is needed. Signed out, there is no server for your documents: your
 companies, clients, catalogue and documents live in this browser's IndexedDB,
 and the PDF is made on your device. Clearing the site's data deletes them —
 back up from Advanced.
@@ -53,8 +53,18 @@ as the default "From", and its Business details from app.unisim.co.uk
 into this browser and kept in step with the hub — those fields show a Live chip
 and are changed on the hub, not here. Delete it and it stays gone until you
 choose "Add it back". Documents you have already made keep the details they
-were made with. Your companies, clients, catalogue and documents are not
-uploaded either way, and a spreadsheet export is a file on your device only.
+were made with. A spreadsheet export is a file on your device only.
+
+**Online backup, signed in.** While you are signed in, a copy of your
+companies, clients, catalogue and documents (pictures included) is kept on your
+Universal ID, so your other devices get them too: a few seconds after each
+change it is uploaded as one compressed file, and another device signed in to
+the same Universal ID merges it in — the newer edit wins, and deletions travel.
+It is protected by your account, like the rest of your Universal ID, but it is
+not end-to-end encrypted. The limit is 10 MB (50 MB for organisations on
+Enterprise); past it the backup pauses and says so. Advanced → "Online backup
+is on" turns it off and deletes the copy; this browser keeps everything.
+Deleting your Universal ID deletes the copy.
 
 ## How it is built
 

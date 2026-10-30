@@ -82,7 +82,18 @@ export default function DocumentsView() {
       </div>
 
       {documents.length === 0 ? (
-        <EmptyState title="No documents yet">Make a quote above. When it is accepted, “Make… → Invoice from this” carries everything across.</EmptyState>
+        // The example lives here, not in the menu (James, 2026-10-30): offered
+        // while nothing is saved, gone once there is something of your own.
+        <EmptyState
+          title="No documents yet"
+          action={
+            <button type="button" className={btnGhost} onClick={() => void loadExample()}>
+              See an example
+            </button>
+          }
+        >
+          Make a quote above. When it is accepted, “Make… → Invoice from this” carries everything across.
+        </EmptyState>
       ) : (
         <>
           <div className="flex flex-wrap gap-2">

@@ -47,6 +47,12 @@ export interface CompanyDefaults {
 export interface Company {
   id: string;
   /**
+   * The built-in example (lib/example.ts) — one of each kind at most, shown
+   * with an Example chip and a dashed border, and deleted as soon as you make
+   * a real one of the same kind (James, 2026-10-30).
+   */
+  example?: boolean;
+  /**
    * The Universal ID company this one was brought in from (the hub's My
    * Company → Business details). Set once; "Update from your company" refreshes
    * the details it knows and leaves the rest alone.
@@ -65,6 +71,12 @@ export interface Company {
 
 export interface Client {
   id: string;
+  /**
+   * The built-in example (lib/example.ts) — one of each kind at most, shown
+   * with an Example chip and a dashed border, and deleted as soon as you make
+   * a real one of the same kind (James, 2026-10-30).
+   */
+  example?: boolean;
   name: string;
   address: string[];
   /** Their number in your books ("No. client"). */
@@ -75,6 +87,12 @@ export interface Client {
 
 export interface Product {
   id: string;
+  /**
+   * The built-in example (lib/example.ts) — one of each kind at most, shown
+   * with an Example chip and a dashed border, and deleted as soon as you make
+   * a real one of the same kind (James, 2026-10-30).
+   */
+  example?: boolean;
   code: string;
   description: string;
   unit: string;
@@ -111,6 +129,12 @@ export type DocStatus = 'draft' | 'sent' | 'accepted' | 'declined' | 'paid' | 'c
  */
 export interface InvoiceDoc {
   id: string;
+  /**
+   * The built-in example (lib/example.ts) — one of each kind at most, shown
+   * with an Example chip and a dashed border, and deleted as soon as you make
+   * a real one of the same kind (James, 2026-10-30).
+   */
+  example?: boolean;
   kind: BusinessDocKind;
   status: DocStatus;
   companyId: string;

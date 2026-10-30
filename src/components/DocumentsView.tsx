@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { computeTotals, formatDate, formatMoney, wantsDecimals } from '@unisim/doc';
 import { KIND_NAMES, KIND_ORDER, STATUS_NAMES, type BusinessDocKind, type DocStatus, type InvoiceDoc } from '../lib/types';
-import { useAppStore } from '../stores/appStore';
+import { ownCompanies, useAppStore } from '../stores/appStore';
 import OrgImport from './OrgImport';
-import { EmptyState, btnGhost, btnPrimary, inputCls, selectBase } from './ui';
+import { SelectCheckbox, SelectionBar, useSelection } from './selection';
+import { EmptyState, ExampleChip, btnGhost, btnPrimary, exampleBorder, inputCls, selectBase } from './ui';
 
 const STATUS_TONE: Record<DocStatus, string> = {
   draft: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
@@ -21,11 +22,12 @@ function total(doc: InvoiceDoc): string {
 }
 
 export default function DocumentsView() {
-  const { companies, documents, createDocument, open, loadExample, setTab } = useAppStore();
+  const { companies, documents, createDocument, open, loadExample, deleteMany } = useAppStore();
   const [kind, setKind] = useState<BusinessDocKind | 'all'>('all');
   const [query, setQuery] = useState('');
   const [companyId, setCompanyId] = useState<string>('');
-  const fromCompany = companies.find((c) => c.id === companyId) ?? companies[0];
+  const mine = ownCompanies(companies);
+  const fromCompany = mine.find((c) => c.id === companyId) ?? mine[0];
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -34,48 +36,29 @@ export default function DocumentsView() {
       .filter((d) => !q || [d.number, d.client.name, d.subject].some((s) => s.toLowerCase().includes(q)))
       .sort((a, b) => (b.date === a.date ? b.createdAt - a.createdAt : b.date.localeCompare(a.date)));
   }, [documents, kind, query]);
-
-  if (!companies.length) {
-    return (
-      <div className="space-y-4">
-      <OrgImport />
-      <EmptyState
-        title="Start with your company"
-        action={
-          <>
-            <button type="button" className={btnPrimary} onClick={() => setTab('companies')}>
-              Add your company
-            </button>
-            <button type="button" className={btnGhost} onClick={() => void loadExample()}>
-              Try the example
-            </button>
-          </>
-        }
-      >
-        Its name, address, logo, bank details and legal footer go on every document. It stays in this browser — nothing is
-        uploaded, and you do not need an account — but sign in, and your company's details come with you.
-      </EmptyState>
-      </div>
-    );
-  }
+  const sel = useSelection(rows.map((d) => d.id));
 
   return (
     <div className="space-y-4">
+      {!mine.length && <OrgImport />}
+
+      {/* "New …" is always here. With no company of your own yet, it opens the
+          company form first (the store's companyPrompt) and the document after. */}
       <div className="flex flex-wrap items-end gap-2">
-        {companies.length > 1 && (
-          <select className={selectBase} value={fromCompany.id} onChange={(e) => setCompanyId(e.target.value)} aria-label="New documents from">
-            {companies.map((c) => (
+        {mine.length > 1 && (
+          <select className={selectBase} value={fromCompany?.id} onChange={(e) => setCompanyId(e.target.value)} aria-label="New documents from">
+            {mine.map((c) => (
               <option key={c.id} value={c.id}>
                 From {c.name}
               </option>
             ))}
           </select>
         )}
-        <button type="button" className={btnPrimary} onClick={() => void createDocument('quote', fromCompany.id)}>
+        <button type="button" className={btnPrimary} onClick={() => void createDocument('quote', fromCompany?.id)}>
           New quote
         </button>
         {KIND_ORDER.filter((k) => k !== 'quote').map((k) => (
-          <button key={k} type="button" className={btnGhost} onClick={() => void createDocument(k, fromCompany.id)}>
+          <button key={k} type="button" className={btnGhost} onClick={() => void createDocument(k, fromCompany?.id)}>
             New {KIND_NAMES[k].toLowerCase()}
           </button>
         ))}
@@ -87,16 +70,18 @@ export default function DocumentsView() {
         <EmptyState
           title="No documents yet"
           action={
-            <button type="button" className={btnGhost} onClick={() => void loadExample()}>
+            <button type="button" className={btnGhost} onClick={() => void loadExample('documents')}>
               See an example
             </button>
           }
         >
-          Make a quote above. When it is accepted, “Make… → Invoice from this” carries everything across.
+          {mine.length
+            ? 'Make a quote above. When it is accepted, “Make… → Invoice from this” carries everything across.'
+            : 'Your company’s name, address, logo and bank details go on every document — the first “New …” asks for them. Everything stays in this browser; sign in, and your company’s details come with you.'}
         </EmptyState>
       ) : (
         <>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <input className={`${inputCls} max-w-xs`} placeholder="Search number, client, subject" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search" />
             <select className={selectBase} value={kind} onChange={(e) => setKind(e.target.value as BusinessDocKind | 'all')} aria-label="Show">
               <option value="all">All kinds</option>
@@ -106,19 +91,28 @@ export default function DocumentsView() {
                 </option>
               ))}
             </select>
+            <div className="ml-auto">
+              <SelectionBar sel={sel} total={rows.length} noun="document" onDelete={(ids) => deleteMany('documents', ids)} />
+            </div>
           </div>
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
               {rows.map((d) => (
-                <li key={d.id}>
+                <li key={d.id} className={`flex items-center ${d.example ? `border-2 ${exampleBorder}` : ''}`}>
+                  <div className="flex items-center self-stretch pl-4">
+                    <SelectCheckbox checked={sel.has(d.id)} onChange={() => sel.toggle(d.id)} label={`Select ${d.number}`} />
+                  </div>
                   <button
                     type="button"
                     onClick={() => open(d.id)}
-                    className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-3 text-left hover:bg-orange-50/60 sm:grid-cols-[8rem_minmax(0,1fr)_6rem_7rem_auto] dark:hover:bg-slate-800/60"
+                    className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-3 text-left hover:bg-orange-50/60 sm:grid-cols-[8rem_minmax(0,1fr)_6rem_7rem_auto] dark:hover:bg-slate-800/60"
                   >
-                    <span className="text-xs font-semibold uppercase tracking-wide text-orange-700 sm:order-none dark:text-orange-400">{KIND_NAMES[d.kind]}</span>
-                    <span className="min-w-0 sm:order-none">
-                      <span className="block truncate font-medium text-slate-900 dark:text-slate-100">{d.client.name || 'No client yet'}</span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-400">{KIND_NAMES[d.kind]}</span>
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate font-medium text-slate-900 dark:text-slate-100">{d.client.name || 'No client yet'}</span>
+                        {d.example && <ExampleChip />}
+                      </span>
                       <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
                         {d.number}
                         {d.subject ? ` · ${d.subject}` : ''}

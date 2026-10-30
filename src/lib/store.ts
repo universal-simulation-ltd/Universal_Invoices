@@ -70,3 +70,12 @@ export async function putMany(rows: { [K in Table]?: Rows[K][] }): Promise<void>
 export async function remove(table: Table, id: string): Promise<void> {
   await run(table, 'readwrite', (t) => t.objectStore(table).delete(id));
 }
+
+/** Several rows of one table, in one transaction — "Delete selected". */
+export async function removeMany(table: Table, ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  await run(table, 'readwrite', (t) => {
+    const store = t.objectStore(table);
+    for (const id of ids) store.delete(id);
+  });
+}

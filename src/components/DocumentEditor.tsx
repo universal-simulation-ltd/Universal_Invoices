@@ -5,7 +5,7 @@ import { renderPdf } from '../lib/pdf';
 import { KIND_NAMES, KIND_ORDER, STATUS_NAMES, type DocStatus, type InvoiceDoc } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
 import LinesEditor from './LinesEditor';
-import { Field, LinesInput, btnDanger, btnGhost, btnPrimary, card, confirmAction, inputCls, sectionTitle, selectBase, selectCls } from './ui';
+import { ExampleChip, Field, LinesInput, btnDanger, btnGhost, btnPrimary, card, confirmAction, inputCls, sectionTitle, selectBase, selectCls } from './ui';
 
 const STATUSES: DocStatus[] = ['draft', 'sent', 'accepted', 'declined', 'paid', 'cancelled'];
 
@@ -16,7 +16,7 @@ const STATUSES: DocStatus[] = ['draft', 'sent', 'accepted', 'declined', 'paid', 
  * room the preview needs.
  */
 export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
-  const { companies, clients, products, documents, updateDocument, deleteDocument, convert, duplicate, open, saveClient } = useAppStore();
+  const { companies, clients, products, documents, updateDocument, deleteMany, convert, duplicate, open, saveClient } = useAppStore();
   const company = companies.find((c) => c.id === doc.companyId);
   const source = doc.sourceId ? documents.find((d) => d.id === doc.sourceId) : undefined;
   const [pane, setPane] = useState<'edit' | 'preview'>('edit');
@@ -59,7 +59,10 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
           ← All documents
         </button>
         <div className="mr-auto min-w-0 px-1">
-          <div className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-400">{KIND_NAMES[doc.kind]}</div>
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-400">
+            {KIND_NAMES[doc.kind]}
+            {doc.example && <ExampleChip />}
+          </div>
           <div className="truncate font-semibold text-slate-900 dark:text-slate-100">{doc.number}</div>
         </div>
         <select className={selectBase} value={doc.status} onChange={(e) => set({ status: e.target.value as DocStatus })} aria-label="Status">
@@ -94,7 +97,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
             const warn = doc.kind === 'invoice' && doc.status !== 'draft'
               ? `Delete invoice ${doc.number}? It has been issued — Invoice numbers are expected to run without gaps — consider marking it Cancelled instead.`
               : `Delete ${KIND_NAMES[doc.kind].toLowerCase()} ${doc.number}? This cannot be undone.`;
-            if (confirmAction(warn)) void deleteDocument(doc.id);
+            if (confirmAction(warn)) void deleteMany('documents', [doc.id]);
           }}
         >
           Delete
@@ -132,6 +135,47 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className={`space-y-4 ${pane === 'edit' ? '' : 'hidden lg:block'}`}>
+          {/* From, first (James, 2026-10-30): who the document is from decides
+              everything under it. A choice only when there is one to make. */}
+          <section className={card}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h2 className={sectionTitle}>From</h2>
+                {companies.length > 1 ? (
+                  <select
+                    className={`${selectCls} mt-2 max-w-md`}
+                    value={company ? company.id : ''}
+                    aria-label="From which of your companies"
+                    onChange={(e) => {
+                      const c = companies.find((x) => x.id === e.target.value);
+                      if (c) set({ companyId: c.id, issuer: issuerSnapshot(c) });
+                    }}
+                  >
+                    {!company && <option value="">{doc.issuer.name || 'No company'}</option>}
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                        {c.example ? ' (example)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-200">{doc.issuer.name || 'No company'}</p>
+                )}
+              </div>
+              {company && (
+                <button
+                  type="button"
+                  className={btnGhost}
+                  title="This document keeps the company details it was made with. Take the current ones instead."
+                  onClick={() => set({ issuer: issuerSnapshot(company) })}
+                >
+                  Use current company details
+                </button>
+              )}
+            </div>
+          </section>
+
           <section className={card}>
             <h2 className={sectionTitle}>Document</h2>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -269,24 +313,6 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
             </div>
           </section>
 
-          <section className={card}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className={sectionTitle}>From</h2>
-                <p className="text-sm text-slate-600 dark:text-slate-400">{doc.issuer.name || 'No company'}</p>
-              </div>
-              {company && (
-                <button
-                  type="button"
-                  className={btnGhost}
-                  title="This document keeps the company details it was made with. Take the current ones instead."
-                  onClick={() => set({ issuer: issuerSnapshot(company) })}
-                >
-                  Use current company details
-                </button>
-              )}
-            </div>
-          </section>
         </div>
 
         <div className={`${pane === 'preview' ? '' : 'hidden lg:block'}`}>

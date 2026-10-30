@@ -5,7 +5,7 @@ import RecordList from './RecordList';
 import { Field, LinesInput, inputCls } from './ui';
 
 export default function ClientsView() {
-  const { clients, saveClient, deleteClient } = useAppStore();
+  const { clients, saveClient, deleteMany, loadExample } = useAppStore();
   const sorted = [...clients].sort((a, b) => a.name.localeCompare(b.name));
   return (
     <RecordList<Client>
@@ -14,7 +14,8 @@ export default function ClientsView() {
       make={() => ({ id: uid(), name: '', address: [], reference: '', email: '', updatedAt: Date.now() })}
       emptyText="Save the people and companies you send documents to, so a new quote is one choice away."
       onSave={saveClient}
-      onDelete={deleteClient}
+      onDelete={(ids) => deleteMany('clients', ids)}
+      onExample={() => void loadExample('clients')}
       deleteWarning={(c) => `Delete ${c.name || 'this client'}? Documents already made for them keep their copy of the address.`}
       summary={(c) => (
         <div className="flex flex-wrap items-baseline justify-between gap-2">

@@ -7,7 +7,7 @@ import RecordList from './RecordList';
 import { DecimalInput, Field, MoneyInput, inputCls } from './ui';
 
 export default function CatalogueView() {
-  const { products, companies, saveProduct, deleteProduct } = useAppStore();
+  const { products, companies, saveProduct, deleteMany, loadExample } = useAppStore();
   // Prices are typed in the first company's number style — the one you work in.
   const style: NumberStyle = companies[0]?.defaults.numberStyle ?? 'en';
   const currency = companies[0]?.defaults.currency ?? 'EUR';
@@ -19,7 +19,8 @@ export default function CatalogueView() {
       make={() => ({ id: uid(), code: '', description: '', unit: '', unitPrice: 0, updatedAt: Date.now() })}
       emptyText="What you sell, with its price and picture. A line on a document starts from here, then you can change it there."
       onSave={saveProduct}
-      onDelete={deleteProduct}
+      onDelete={(ids) => deleteMany('products', ids)}
+      onExample={() => void loadExample('products')}
       summary={(p) => (
         <div className="flex items-center gap-3">
           {p.image ? (

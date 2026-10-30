@@ -35,7 +35,7 @@ function blankCompany(): Company {
 }
 
 export default function CompaniesView() {
-  const { companies, documents, saveCompany, deleteCompany } = useAppStore();
+  const { companies, documents, saveCompany, deleteMany, loadExample, companyPrompt } = useAppStore();
   return (
     <div className="space-y-4">
     <OrgImport />
@@ -45,7 +45,10 @@ export default function CompaniesView() {
       make={blankCompany}
       emptyText="The company your documents come from. Add more than one if you trade under more than one name."
       onSave={saveCompany}
-      onDelete={deleteCompany}
+      onDelete={(ids) => deleteMany('companies', ids)}
+      onExample={() => void loadExample('companies')}
+      // "New …" with no company of your own lands here with the form open.
+      startNew={companyPrompt !== null}
       deleteWarning={(c) => {
         const n = documents.filter((d) => d.companyId === c.id).length;
         return n

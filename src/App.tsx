@@ -48,6 +48,10 @@ export default function App() {
         themeStore={useThemeStore}
         appPreferences={<DefaultViewSelect id="home-tab" label="Opens on" fallback="documents" views={TABS} />}
         suiteSwitcherIconSrc={`${import.meta.env.BASE_URL}unisim-icon.png`}
+        // Signed in, the bar says whose it is — "Bradley’s Invoices" — and Tune
+        // this app gets the account area, where App name keeps that, goes back
+        // to "Universal Invoices" or takes a name they type (SDK 0.212.0).
+        personalTitle={(name) => (name ? `${name}’s Invoices` : 'My Invoices')}
       />
       <div className={`${CONTAINER} pt-4`}>
         <UpdateNotice />

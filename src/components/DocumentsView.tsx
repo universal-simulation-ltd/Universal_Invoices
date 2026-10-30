@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { computeTotals, formatDate, formatMoney, wantsDecimals } from '@unisim/doc';
 import { KIND_NAMES, KIND_ORDER, STATUS_NAMES, type BusinessDocKind, type DocStatus, type InvoiceDoc } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
+import OrgImport from './OrgImport';
 import { EmptyState, btnGhost, btnPrimary, inputCls, selectBase } from './ui';
 
 const STATUS_TONE: Record<DocStatus, string> = {
@@ -36,6 +37,8 @@ export default function DocumentsView() {
 
   if (!companies.length) {
     return (
+      <div className="space-y-4">
+      <OrgImport />
       <EmptyState
         title="Start with your company"
         action={
@@ -50,8 +53,9 @@ export default function DocumentsView() {
         }
       >
         Its name, address, logo, bank details and legal footer go on every document. It stays in this browser — nothing is
-        uploaded, and there is no account.
+        uploaded, and you do not need an account — but sign in, and your company's details come with you.
       </EmptyState>
+      </div>
     );
   }
 

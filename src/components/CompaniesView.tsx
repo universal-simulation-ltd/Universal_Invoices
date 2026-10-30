@@ -3,6 +3,7 @@ import { defaultNumbering, formatNumber, todayIso } from '../lib/numbering';
 import { KIND_NAMES, KIND_ORDER, type Company } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
 import ImagePicker from './ImagePicker';
+import OrgImport from './OrgImport';
 import RecordList from './RecordList';
 import { DecimalInput, Field, LinesInput, inputCls, labelCls, sectionTitle, selectCls } from './ui';
 
@@ -36,6 +37,8 @@ function blankCompany(): Company {
 export default function CompaniesView() {
   const { companies, documents, saveCompany, deleteCompany } = useAppStore();
   return (
+    <div className="space-y-4">
+    <OrgImport />
     <RecordList<Company>
       rows={companies}
       noun="company"
@@ -170,5 +173,6 @@ export default function CompaniesView() {
         );
       }}
     />
+    </div>
   );
 }

@@ -3,6 +3,7 @@ import { computeTotals, layoutBusinessDoc } from '@unisim/doc';
 import { makeBackup, mergeDataset, parseBackup } from './backup';
 import { convertDocument, duplicateDocument, newDocument, pdfFileName, toBusinessDoc } from './convert';
 import { exampleData } from './example';
+import { companyFromOrg, hasBusinessDetails, type OrgDetails } from './fromOrg';
 import { moneyInputValue, parseDecimal, parseMoney } from './money';
 import { addDays, defaultNumbering, formatNumber } from './numbering';
 
@@ -119,5 +120,53 @@ describe('backup', () => {
     expect(r.updated).toBe(1);
     const same = mergeDataset(data, data);
     expect(same.added + same.updated).toBe(0);
+  });
+});
+
+describe('company from the hub (platform 0318)', () => {
+  const org: OrgDetails = {
+    id: 'org-1',
+    name: 'HRV Simulation',
+    legal_name: 'HAPTIQUE ET REALITE VIRTUELLE',
+    address_lines: ["Centre d'Affaires Technopolis", '', '53810 Changé', 'France'],
+    vat_number: 'FR78793796806',
+    registration_number: 'SIRET 79379680600032',
+    phone: '+33 2 44 47 23 20',
+    public_email: 'contact@example.com',
+    bank_details: ['BIC : EXAMPLE', 'IBAN : FR76 0000'],
+  };
+
+  it('a fresh company takes the registered name, address, bank and a footer', () => {
+    const c = companyFromOrg(org, undefined, 'James Markey', () => 'new-id');
+    expect(c.id).toBe('new-id');
+    expect(c.orgId).toBe('org-1');
+    expect(c.name).toBe('HAPTIQUE ET REALITE VIRTUELLE');
+    expect(c.address).toEqual(["Centre d'Affaires Technopolis", '53810 Changé', 'France']);
+    expect(c.contact).toEqual({ name: 'James Markey', phone: '+33 2 44 47 23 20', email: 'contact@example.com' });
+    expect(c.bank).toEqual(['BIC : EXAMPLE', 'IBAN : FR76 0000']);
+    expect(c.footer).toEqual([
+      'HAPTIQUE ET REALITE VIRTUELLE',
+      "Centre d'Affaires Technopolis - 53810 Changé - France",
+      'SIRET 79379680600032 - VAT FR78793796806',
+      'Tel +33 2 44 47 23 20 - contact@example.com',
+    ]);
+  });
+
+  it('updating keeps what the hub does not know, and the app’s own settings', () => {
+    const { company } = exampleData('2026-10-29');
+    const mine = { ...company, orgId: 'org-1', numbering: { ...company.numbering, invoice: { pattern: 'X-{N}', next: 42 } } };
+    const c = companyFromOrg({ id: 'org-1', name: 'HRV Simulation' }, mine, 'Someone', () => 'unused');
+    expect(c.id).toBe(mine.id);
+    expect(c.address).toEqual(mine.address);
+    expect(c.bank).toEqual(mine.bank);
+    expect(c.footer).toEqual(mine.footer);
+    expect(c.contact.name).toBe(mine.contact.name);
+    expect(c.numbering.invoice).toEqual({ pattern: 'X-{N}', next: 42 });
+    expect(c.name).toBe('HRV Simulation');
+  });
+
+  it('knows when the hub has only a name', () => {
+    expect(hasBusinessDetails({ id: 'x', name: 'Only a name' })).toBe(false);
+    expect(hasBusinessDetails(org)).toBe(true);
   });
 });

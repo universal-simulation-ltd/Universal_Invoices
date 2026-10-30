@@ -46,6 +46,12 @@ export interface CompanyDefaults {
 /** A company you send documents from. You may have more than one. */
 export interface Company {
   id: string;
+  /**
+   * The Universal ID company this one was brought in from (the hub's My
+   * Company → Business details). Set once; "Update from your company" refreshes
+   * the details it knows and leaves the rest alone.
+   */
+  orgId?: string;
   name: string;
   logo?: StoredImage;
   address: string[];

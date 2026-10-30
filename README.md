@@ -24,8 +24,18 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
 - **English or French documents**, independent of how numbers are written
   (`163 000 €` or `€163,000`). Euro, pound and dollar.
 - **More than one company** if you trade under more than one name.
-- **Back up everything** to one JSON file, and restore it on another device —
-  restoring merges, it never deletes.
+- **Duplicate** a company, client or catalogue item to start a new one from it.
+- **A catalogue that fills fast:** add several products at once in rows (a new
+  row appears as you type in the last), drop a picture on a product to set it,
+  or drop many pictures on the Catalogue tab to make one product each, coded by
+  the file name.
+- **Spreadsheets in and out:** export one item, a selection or everything to an
+  `.xlsx` workbook (Companies, Clients, Catalogue, Documents, Lines, plus a Read
+  me sheet) — a company brings its documents, a document brings its company,
+  client and catalogue items. Pictures stay out; the backup has them.
+- **Back up everything** to one JSON file, and restore it on another device.
+  One **Import…** takes either a backup or a spreadsheet, tells you what it
+  will add and update, and asks first — importing merges, it never deletes.
 
 ## Privacy
 
@@ -34,10 +44,17 @@ companies, clients, catalogue and documents live in this browser's IndexedDB,
 and the PDF is made on your device. Clearing the site's data deletes them —
 back up from Advanced.
 
-Signing in with a Universal ID is optional. It brings your Tuning, and
-**Use <company>** copies your company's Business details (address, VAT and
-registration numbers, bank details, logo, footer) from app.unisim.co.uk into
-this browser. Your documents are not uploaded either way.
+Signing in with a Universal ID is optional. It brings your Tuning and lets you
+name the app ("Bradley's Invoices", the product's name, or your own) in Tune
+this app; that choice and your Call me name are kept on your Universal ID. If
+your Universal ID belongs to a company, that company appears in Your companies
+as the default "From", and its Business details from app.unisim.co.uk
+(address, VAT and registration numbers, bank details, logo, footer) are read
+into this browser and kept in step with the hub — those fields show a Live chip
+and are changed on the hub, not here. Delete it and it stays gone until you
+choose "Add it back". Documents you have already made keep the details they
+were made with. Your companies, clients, catalogue and documents are not
+uploaded either way, and a spreadsheet export is a file on your device only.
 
 ## How it is built
 
@@ -51,7 +68,7 @@ landmark to it.
 ```
 npm install
 npm run dev        # or scripts/preview.ps1 / preview.sh — port 5213
-npm test           # Vitest: numbering, money input, conversion, backups
+npm test           # Vitest: numbering, money input, conversion, backups, spreadsheets
 npm run build
 ```
 

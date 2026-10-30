@@ -7,6 +7,7 @@ import ClientsView from './components/ClientsView';
 import CompaniesView from './components/CompaniesView';
 import DocumentEditor from './components/DocumentEditor';
 import DocumentsView from './components/DocumentsView';
+import { OrgSync } from './components/OrgSync';
 import { useAppStore, type Tab } from './stores/appStore';
 import { useThemeStore } from './stores/themeStore';
 
@@ -55,6 +56,8 @@ export default function App() {
       />
       <div className={`${CONTAINER} pt-4`}>
         <UpdateNotice />
+        {/* Keeps the Universal ID company in Your companies, live. */}
+        <OrgSync />
       </div>
 
       <main className={`${CONTAINER} flex-1 py-4 sm:py-6`}>

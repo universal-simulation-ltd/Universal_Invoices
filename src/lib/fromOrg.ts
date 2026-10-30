@@ -92,3 +92,28 @@ export function companyFromOrg(org: OrgDetails, existing: Company | undefined, c
     updatedAt: Date.now(),
   };
 }
+
+/** The fields of a Company the hub can own. */
+export type LiveField = 'name' | 'address' | 'phone' | 'email' | 'bank' | 'footer' | 'logo';
+
+/**
+ * Which fields follow the hub — the ones it has a value for. A field the hub
+ * leaves blank stays yours to type here (James, 2026-10-30: keep the company
+ * in sync, "highlight the box to show it's dynamic").
+ */
+export function liveFields(org: OrgDetails): Set<LiveField> {
+  const out = new Set<LiveField>(['name']);
+  if (tidy(org.address_lines).length) out.add('address');
+  if (org.phone?.trim()) out.add('phone');
+  if (org.public_email?.trim()) out.add('email');
+  if (tidy(org.bank_details).length) out.add('bank');
+  if (hasBusinessDetails(org)) out.add('footer');
+  if (org.logo_url) out.add('logo');
+  return out;
+}
+
+/** Whether syncing `next` over `stored` would change anything the hub owns (the logo is compared by URL, elsewhere). */
+export function hubFieldsDiffer(next: Company, stored: Company): boolean {
+  const pick = (c: Company) => JSON.stringify([c.name, c.address, c.contact.phone, c.contact.email, c.bank, c.footer]);
+  return pick(next) !== pick(stored);
+}

@@ -3,9 +3,10 @@ import { defaultNumbering, formatNumber, todayIso } from '../lib/numbering';
 import { KIND_NAMES, KIND_ORDER, type Company } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
 import ImagePicker from './ImagePicker';
-import OrgImport from './OrgImport';
+import { HUB_DETAILS, OrgRestore, useLiveOrg } from './OrgSync';
+import { saveSpreadsheet } from './exportSheet';
 import RecordList from './RecordList';
-import { DecimalInput, Field, LinesInput, inputCls, labelCls, sectionTitle, selectCls } from './ui';
+import { DecimalInput, Field, LinesInput, LiveChip, inputCls, labelCls, liveInputCls, sectionTitle, selectCls } from './ui';
 
 const EXPORT_NOTE_FR = 'Exonération de TVA, art. 262 I du CGI';
 
@@ -35,10 +36,11 @@ function blankCompany(): Company {
 }
 
 export default function CompaniesView() {
-  const { companies, documents, saveCompany, deleteMany, loadExample, companyPrompt } = useAppStore();
+  const { companies, documents, saveCompany, deleteMany, loadExample, companyPrompt, duplicateRow } = useAppStore();
+  const { org, liveFor } = useLiveOrg();
   return (
     <div className="space-y-4">
-    <OrgImport />
+    <OrgRestore />
     <RecordList<Company>
       rows={companies}
       noun="company"
@@ -47,13 +49,19 @@ export default function CompaniesView() {
       onSave={saveCompany}
       onDelete={(ids) => deleteMany('companies', ids)}
       onExample={() => void loadExample('companies')}
+      onExport={(ids) => saveSpreadsheet('companies', ids)}
+      onDuplicate={(c) => duplicateRow('companies', c.id)}
+      live={(c) => liveFor(c).size > 0}
       // "New …" with no company of your own lands here with the form open.
       startNew={companyPrompt !== null}
       deleteWarning={(c) => {
         const n = documents.filter((d) => d.companyId === c.id).length;
-        return n
+        const base = n
           ? `Delete ${c.name}? Its ${n} document${n === 1 ? '' : 's'} stay, with the company details they were made with, but you cannot make new ones from it.`
           : `Delete ${c.name || 'this company'}?`;
+        // The live one: say it will not come back by itself.
+        if (c.orgId && liveFor(c).size) return `${base} It stops following your Universal ID company; you can add it back from this tab.`;
+        return base;
       }}
       summary={(c) => (
         <div className="flex items-center gap-4">
@@ -67,35 +75,62 @@ export default function CompaniesView() {
       form={(c, set) => {
         const d = c.defaults;
         const setDefaults = (patch: Partial<Company['defaults']>) => set({ defaults: { ...d, ...patch } });
+        // Fields the hub fills in follow it: read-only and tinted. The rest —
+        // and all of it signed out — is yours to type.
+        const lf = liveFor(c);
+        const text = (live: boolean, value: string, onChange: (v: string) => void, autoFocus = false) =>
+          live ? (
+            <input className={liveInputCls} value={value} readOnly />
+          ) : (
+            <input className={inputCls} value={value} onChange={(e) => onChange(e.target.value)} autoFocus={autoFocus} />
+          );
+        const back = encodeURIComponent(window.location.href);
         return (
           <div className="space-y-6">
+            {lf.size > 0 && org && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-sky-200 bg-sky-50/70 px-3 py-2 text-sm text-slate-700 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-slate-300">
+                <LiveChip />
+                <span className="min-w-0 flex-1">
+                  The tinted boxes follow <span className="font-semibold">{org.name}</span> on your Universal ID and update by themselves. Want a version that stays put? Duplicate it.
+                </span>
+                <a className="font-semibold text-sky-800 hover:underline dark:text-sky-300" href={`${HUB_DETAILS}?return=${back}`}>
+                  Change on the hub →
+                </a>
+              </div>
+            )}
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Company name" hint="Also the running header on every page.">
-                <input className={inputCls} value={c.name} onChange={(e) => set({ name: e.target.value })} autoFocus />
+                {text(lf.has('name'), c.name, (name) => set({ name }), true)}
               </Field>
               <div>
                 <span className={labelCls}>Logo</span>
-                <ImagePicker value={c.logo} onChange={(logo) => set({ logo })} maxEdge={1200} label="logo" />
+                {lf.has('logo') ? (
+                  <div className="flex h-24 items-center justify-center rounded-lg border border-sky-200 bg-sky-50/80 p-2 dark:border-sky-900/70 dark:bg-sky-950/30">
+                    {c.logo ? <img src={c.logo.dataUrl} alt="Logo" className="max-h-full max-w-full object-contain" /> : <span className="text-xs text-slate-500">Loading the hub’s logo…</span>}
+                  </div>
+                ) : (
+                  <ImagePicker value={c.logo} onChange={(logo) => set({ logo })} maxEdge={1200} label="logo" />
+                )}
               </div>
               <Field label="Address">
-                <LinesInput rows={5} value={c.address} onChange={(address) => set({ address })} />
+                <LinesInput rows={5} value={c.address} onChange={(address) => set({ address })} live={lf.has('address')} />
               </Field>
               <div className="grid gap-3">
                 <Field label="Contact name">
                   <input className={inputCls} value={c.contact.name} onChange={(e) => set({ contact: { ...c.contact, name: e.target.value } })} />
                 </Field>
                 <Field label="Phone">
-                  <input className={inputCls} value={c.contact.phone} onChange={(e) => set({ contact: { ...c.contact, phone: e.target.value } })} />
+                  {text(lf.has('phone'), c.contact.phone, (phone) => set({ contact: { ...c.contact, phone } }))}
                 </Field>
                 <Field label="Email">
-                  <input className={inputCls} value={c.contact.email} onChange={(e) => set({ contact: { ...c.contact, email: e.target.value } })} />
+                  {text(lf.has('email'), c.contact.email, (email) => set({ contact: { ...c.contact, email } }))}
                 </Field>
               </div>
               <Field label="Bank details" hint="One line each: bank, BIC, IBAN.">
-                <LinesInput rows={3} value={c.bank} onChange={(bank) => set({ bank })} />
+                <LinesInput rows={3} value={c.bank} onChange={(bank) => set({ bank })} live={lf.has('bank')} />
               </Field>
-              <Field label="Legal footer" hint="On every page. The first line prints bold — usually the registered name; then SIRET / VAT / RCS.">
-                <LinesInput rows={4} value={c.footer} onChange={(footer) => set({ footer })} />
+              <Field label="Legal footer" hint={lf.has('footer') ? 'Made from the hub’s registered name, address, numbers and contact details.' : 'On every page. The first line prints bold — usually the registered name; then SIRET / VAT / RCS.'}>
+                <LinesInput rows={4} value={c.footer} onChange={(footer) => set({ footer })} live={lf.has('footer')} />
               </Field>
             </div>
 

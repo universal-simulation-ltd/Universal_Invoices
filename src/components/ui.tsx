@@ -35,10 +35,11 @@ export function Field({ label, children, hint, className = '' }: { label: string
 }
 
 /** One text box per line — addresses, bank details, the footer. */
-export function LinesInput({ value, onChange, rows = 4, placeholder }: { value: string[]; onChange: (v: string[]) => void; rows?: number; placeholder?: string }) {
+export function LinesInput({ value, onChange, rows = 4, placeholder, live = false }: { value: string[]; onChange: (v: string[]) => void; rows?: number; placeholder?: string; live?: boolean }) {
   return (
     <textarea
-      className={`${inputCls} resize-y`}
+      className={live ? `${liveInputCls} resize-none` : `${inputCls} resize-y`}
+      readOnly={live}
       rows={rows}
       placeholder={placeholder}
       value={value.join('\n')}
@@ -157,3 +158,23 @@ export function ExampleChip() {
 
 /** The example's row/card: a dashed border instead of the solid one. */
 export const exampleBorder = 'border-dashed border-orange-300 dark:border-orange-800';
+
+/**
+ * Live: this follows your Universal ID company and updates itself (James,
+ * 2026-10-30: "highlight the box to show it's dynamic"). Sky, not orange — the
+ * app's orange already means "act here", and this means "set elsewhere".
+ */
+export function LiveChip() {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-sky-300 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-sky-800 dark:border-sky-800 dark:bg-sky-950/50 dark:text-sky-300">
+      <span className="h-1.5 w-1.5 rounded-full bg-sky-500" aria-hidden />
+      Live
+    </span>
+  );
+}
+
+export const liveBorder = 'border-sky-300 ring-1 ring-sky-200 dark:border-sky-800 dark:ring-sky-900/60';
+
+/** A form field the hub fills in: read-only here, tinted to say so. */
+export const liveInputCls =
+  'w-full min-w-0 cursor-default rounded-lg border border-sky-200 bg-sky-50/80 px-3 py-2 text-sm text-slate-800 focus:outline-none dark:border-sky-900/70 dark:bg-sky-950/30 dark:text-slate-200';

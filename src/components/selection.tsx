@@ -52,11 +52,14 @@ export function SelectionBar({
   total,
   noun,
   onDelete,
+  onExport,
 }: {
   sel: Selection;
   total: number;
   noun: string;
   onDelete: (ids: string[]) => void | Promise<void>;
+  /** "Export to spreadsheet" for the ticked rows (and what goes with them). */
+  onExport?: (ids: string[]) => void;
 }) {
   if (total === 0) return null;
   const n = sel.selected.size;
@@ -79,6 +82,11 @@ export function SelectionBar({
           >
             Delete selected
           </button>
+          {onExport && (
+            <button type="button" className={`${btnGhost} py-1.5`} onClick={() => onExport([...sel.selected])}>
+              Export to spreadsheet
+            </button>
+          )}
           <button type="button" className={`${btnGhost} py-1.5`} onClick={sel.clear}>
             Clear
           </button>

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { SelectCheckbox, SelectionBar, useSelection } from './selection';
-import { EmptyState, ExampleChip, btnDanger, btnGhost, btnPrimary, card, confirmAction, exampleBorder } from './ui';
+import { EmptyState, ExampleChip, LiveChip, btnDanger, btnGhost, btnPrimary, card, confirmAction, exampleBorder, liveBorder } from './ui';
 
 /**
  * The shape the Clients, Catalogue and Companies tabs share: a list, one row
@@ -22,6 +22,9 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
   onExample,
   startNew = false,
   onStarted,
+  onDuplicate,
+  live,
+  onExport,
 }: {
   rows: T[];
   make: () => T;
@@ -37,6 +40,12 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
   /** Open with a blank form ready (the "register your company first" prompt). */
   startNew?: boolean;
   onStarted?: () => void;
+  /** "Duplicate" in the editor: saves a copy and opens it, so it can be renamed. */
+  onDuplicate?: (row: T) => Promise<T | undefined>;
+  /** A row that follows something elsewhere (the live Universal ID company): a Live chip and a sky border. */
+  live?: (row: T) => boolean;
+  /** "Export to spreadsheet" for the ticked rows. */
+  onExport?: (ids: string[]) => void;
 }) {
   const [draft, setDraft] = useState<T | null>(null);
   const isNew = draft !== null && !rows.some((r) => r.id === draft.id);
@@ -72,6 +81,18 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
         <button type="button" className={btnGhost} onClick={() => setDraft(null)}>
           Cancel
         </button>
+        {!isNew && onDuplicate && (
+          <button
+            type="button"
+            className={btnGhost}
+            onClick={async () => {
+              const copy = await onDuplicate(d);
+              if (copy) setDraft(structuredClone(copy));
+            }}
+          >
+            Duplicate
+          </button>
+        )}
         {!isNew && (
           <button
             type="button"
@@ -95,7 +116,7 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
         <button type="button" className={btnPrimary} disabled={draft !== null} onClick={() => setDraft(make())}>
           Add a {noun}
         </button>
-        {!draft && <SelectionBar sel={sel} total={rows.length} noun={noun} onDelete={onDelete} />}
+        {!draft && <SelectionBar sel={sel} total={rows.length} noun={noun} onDelete={onDelete} onExport={onExport} />}
       </div>
       {isNew && draft && editor(draft)}
       {rows.length === 0 && !draft && (
@@ -124,12 +145,12 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
               type="button"
               disabled={draft !== null}
               onClick={() => setDraft(structuredClone(row))}
-              className={`${card} ${row.example ? exampleBorder : ''} block min-w-0 flex-1 text-left hover:border-orange-300 disabled:opacity-60 dark:hover:border-orange-800`}
+              className={`${card} ${row.example ? exampleBorder : ''} ${live?.(row) ? liveBorder : ''} block min-w-0 flex-1 text-left hover:border-orange-300 disabled:opacity-60 dark:hover:border-orange-800`}
             >
-              {row.example ? (
+              {row.example || live?.(row) ? (
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">{summary(row)}</div>
-                  <ExampleChip />
+                  {row.example ? <ExampleChip /> : <LiveChip />}
                 </div>
               ) : (
                 summary(row)

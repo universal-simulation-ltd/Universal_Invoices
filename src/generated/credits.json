@@ -2,8 +2,19 @@
   "app": "universal-invoices",
   "appVersion": "0.1.0",
   "generated": "2026-10-30",
-  "noticesCount": 11,
+  "noticesCount": 12,
   "ships": [
+    {
+      "name": "fflate",
+      "version": "0.8.3",
+      "licence": "MIT",
+      "repo": "https://github.com/101arrowz/fflate",
+      "homepage": "https://101arrowz.github.io/fflate",
+      "authors": [
+        "Arjun Barrett"
+      ],
+      "source": "node_modules"
+    },
     {
       "name": "react",
       "title": "React",

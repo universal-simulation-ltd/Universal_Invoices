@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { makeBackup, mergeDataset, parseBackup } from '../lib/backup';
-import { convertDocument, duplicateDocument, newDocument } from '../lib/convert';
+import { convertDocument, duplicateDocument, newDocument, uid } from '../lib/convert';
 import { exampleData } from '../lib/example';
+import { exportXlsx, planImport, selectionFor } from '../lib/spreadsheet';
 import { todayIso } from '../lib/numbering';
 import { loadAll, put, putMany, remove, removeMany, type Rows, type Table } from '../lib/store';
 import type { BusinessDocKind, Client, Company, InvoiceDoc, Product } from '../lib/types';
@@ -34,6 +35,14 @@ interface AppState {
   saveCompany: (c: Company) => Promise<void>;
   saveClient: (c: Client) => Promise<void>;
   saveProduct: (p: Product) => Promise<void>;
+  /**
+   * The live Universal ID company (OrgSync.tsx): saved quietly — no notice,
+   * and never the "register your company first" document that saveCompany
+   * makes.
+   */
+  syncCompany: (c: Company) => Promise<void>;
+  /** "Duplicate" on a company, client or catalogue item: a copy you own — never live, never an example. Returns it. */
+  duplicateRow: <K extends 'companies' | 'clients' | 'products'>(table: K, id: string) => Promise<Rows[K] | undefined>;
   /** "Delete" and "Delete selected", for every list. */
   deleteMany: (table: Table, ids: string[]) => Promise<void>;
 
@@ -50,6 +59,17 @@ interface AppState {
   loadExample: (table?: Table) => Promise<void>;
   backupJson: () => string;
   restore: (text: string) => Promise<void>;
+  /**
+   * Everything — or, with a table and ids, that selection and what goes with
+   * it (a company's documents; a document's company, client and catalogue
+   * items) — as .xlsx bytes and a file name.
+   */
+  spreadsheet: (table?: Table, ids?: string[]) => { bytes: Uint8Array; name: string };
+  /**
+   * A spreadsheet from `spreadsheet()` (or one edited by hand): says what it
+   * would add and update, asks, then writes. Never deletes.
+   */
+  importSpreadsheet: (bytes: Uint8Array, confirm: (message: string) => boolean) => Promise<void>;
 }
 
 const pending = new Map<string, ReturnType<typeof setTimeout>>();
@@ -57,8 +77,35 @@ const pending = new Map<string, ReturnType<typeof setTimeout>>();
 const upsert = <T extends { id: string }>(rows: T[], row: T): T[] =>
   rows.some((r) => r.id === row.id) ? rows.map((r) => (r.id === row.id ? row : r)) : [...rows, row];
 
-/** Your own companies — the example does not count as having registered one. */
-export const ownCompanies = (companies: Company[]) => companies.filter((c) => !c.example);
+/**
+ * Your own companies — the example does not count as having registered one.
+ * The live Universal ID company comes first: it is the default "From"
+ * (James, 2026-10-30: "silently create it in companies as the default").
+ */
+export const ownCompanies = (companies: Company[]) =>
+  companies.filter((c) => !c.example).sort((a, b) => Number(!!b.orgId) - Number(!!a.orgId));
+
+// Deleting the live company is remembered per hub company, or OrgSync would
+// put it straight back. "Add it back" (OrgSync) forgets it.
+const DISMISSED = 'universal-invoices:org-dismissed';
+export function dismissedOrgs(): string[] {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(DISMISSED) ?? '[]');
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+export function setOrgDismissed(orgId: string, dismissed: boolean) {
+  const next = new Set(dismissedOrgs());
+  if (dismissed) next.add(orgId);
+  else next.delete(orgId);
+  try {
+    localStorage.setItem(DISMISSED, JSON.stringify([...next]));
+  } catch {
+    /* storage blocked — it comes back next visit, which is the safe way round */
+  }
+}
 
 export const useAppStore = create<AppState>((set, get) => {
   /**
@@ -126,10 +173,28 @@ export const useAppStore = create<AppState>((set, get) => {
     },
     saveClient: (c) => saveRow('clients', c),
     saveProduct: (p) => saveRow('products', p),
+    syncCompany: (c) => saveRow('companies', c),
+    duplicateRow: async (table, id) => {
+      const rows = get()[table] as Rows[typeof table][];
+      const source = rows.find((r) => r.id === id);
+      if (!source) return undefined;
+      const copy = structuredClone(source) as Rows[typeof table] & { orgId?: string; orgLogoUrl?: string; name?: string; description?: string };
+      copy.id = uid();
+      delete copy.example;
+      delete copy.orgId;
+      delete copy.orgLogoUrl;
+      if (table === 'products') copy.description = `${copy.description} (copy)`;
+      else copy.name = `${copy.name} (copy)`;
+      await saveRow(table, copy);
+      return copy;
+    },
 
     deleteMany: async (table, ids) => {
       if (!ids.length) return;
       const gone = new Set(ids);
+      if (table === 'companies') {
+        for (const c of get().companies) if (gone.has(c.id) && c.orgId) setOrgDismissed(c.orgId, true);
+      }
       if (table === 'documents') {
         for (const id of ids) {
           clearTimeout(pending.get(id));
@@ -238,6 +303,47 @@ export const useAppStore = create<AppState>((set, get) => {
       // A restored real row counts as making one: the examples of those kinds go.
       for (const table of ['companies', 'clients', 'products', 'documents'] as const) {
         if (write[table].some((r) => !r.example)) await dropExample(table);
+      }
+    },
+    spreadsheet: (table, ids) => {
+      const { companies, clients, products, documents } = get();
+      const all = { companies, clients, products, documents };
+      const data = table && ids ? selectionFor(all, table, ids) : all;
+      // One company: named after it. Otherwise the app and the day.
+      const one = table === 'companies' && ids?.length === 1 ? companies.find((c) => c.id === ids[0])?.name : undefined;
+      const name = one ? `${one} — Universal Invoices ${todayIso()}.xlsx` : `Universal Invoices ${table && ids ? 'selection' : 'all'} ${todayIso()}.xlsx`;
+      return { bytes: exportXlsx(data), name: name.replace(/[\\/:*?"<>|]/g, ' ') };
+    },
+    importSpreadsheet: async (bytes, confirm) => {
+      const { companies, clients, products, documents } = get();
+      const plan = planImport({ companies, clients, products, documents }, bytes);
+      if (plan.added + plan.updated === 0) {
+        set({ notice: 'Nothing to import — everything in that spreadsheet is already here.' });
+        return;
+      }
+      const count = (t: keyof typeof plan.write, one: string, many: string) => {
+        const k = plan.write[t].length;
+        return k ? `${k} ${k === 1 ? one : many}` : '';
+      };
+      const what = [count('companies', 'company', 'companies'), count('clients', 'client', 'clients'), count('products', 'catalogue item', 'catalogue items'), count('documents', 'document', 'documents')]
+        .filter(Boolean)
+        .join(', ');
+      const message = [
+        `This spreadsheet adds ${plan.added} and updates ${plan.updated}: ${what}.`,
+        ...plan.notes,
+        'Nothing here is deleted. Import it?',
+      ].join('\n\n');
+      if (!confirm(message)) return;
+      await putMany(plan.write);
+      set({
+        companies: plan.write.companies.reduce(upsert, companies),
+        clients: plan.write.clients.reduce(upsert, clients),
+        products: plan.write.products.reduce(upsert, products),
+        documents: plan.write.documents.reduce(upsert, documents),
+        notice: `Imported: ${plan.added} added, ${plan.updated} updated. Nothing already here was deleted.`,
+      });
+      for (const table of ['companies', 'clients', 'products', 'documents'] as const) {
+        if (plan.write[table].length) await dropExample(table);
       }
     },
   };

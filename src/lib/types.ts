@@ -54,10 +54,13 @@ export interface Company {
   example?: boolean;
   /**
    * The Universal ID company this one was brought in from (the hub's My
-   * Company → Business details). Set once; "Update from your company" refreshes
-   * the details it knows and leaves the rest alone.
+   * Company → Business details). LIVE while you are signed in to it: the
+   * details the hub knows follow it (OrgSync.tsx); Duplicate makes a copy that
+   * does not.
    */
   orgId?: string;
+  /** The hub logo `logo` was made from — re-fetched only when the hub's changes. */
+  orgLogoUrl?: string;
   name: string;
   logo?: StoredImage;
   address: string[];

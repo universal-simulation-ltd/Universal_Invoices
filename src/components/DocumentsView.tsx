@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { computeTotals, formatDate, formatMoney, wantsDecimals } from '@unisim/doc';
 import { KIND_NAMES, KIND_ORDER, STATUS_NAMES, type BusinessDocKind, type DocStatus, type InvoiceDoc } from '../lib/types';
 import { ownCompanies, useAppStore } from '../stores/appStore';
-import OrgImport from './OrgImport';
+import { saveSpreadsheet } from './exportSheet';
 import { SelectCheckbox, SelectionBar, useSelection } from './selection';
 import { EmptyState, ExampleChip, btnGhost, btnPrimary, exampleBorder, inputCls, selectBase } from './ui';
 
@@ -40,7 +40,6 @@ export default function DocumentsView() {
 
   return (
     <div className="space-y-4">
-      {!mine.length && <OrgImport />}
 
       {/* "New …" is always here. With no company of your own yet, it opens the
           company form first (the store's companyPrompt) and the document after. */}
@@ -92,7 +91,7 @@ export default function DocumentsView() {
               ))}
             </select>
             <div className="ml-auto">
-              <SelectionBar sel={sel} total={rows.length} noun="document" onDelete={(ids) => deleteMany('documents', ids)} />
+              <SelectionBar sel={sel} total={rows.length} noun="document" onDelete={(ids) => deleteMany('documents', ids)} onExport={(ids) => saveSpreadsheet('documents', ids)} />
             </div>
           </div>
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">

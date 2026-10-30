@@ -3,11 +3,12 @@ import { uid } from '../lib/convert';
 import type { NumberStyle, Product } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
 import ImagePicker from './ImagePicker';
+import { saveSpreadsheet } from './exportSheet';
 import RecordList from './RecordList';
 import { DecimalInput, Field, MoneyInput, inputCls } from './ui';
 
 export default function CatalogueView() {
-  const { products, companies, saveProduct, deleteMany, loadExample } = useAppStore();
+  const { products, companies, saveProduct, deleteMany, loadExample, duplicateRow } = useAppStore();
   // Prices are typed in the first company's number style — the one you work in.
   const style: NumberStyle = companies[0]?.defaults.numberStyle ?? 'en';
   const currency = companies[0]?.defaults.currency ?? 'EUR';
@@ -21,6 +22,8 @@ export default function CatalogueView() {
       onSave={saveProduct}
       onDelete={(ids) => deleteMany('products', ids)}
       onExample={() => void loadExample('products')}
+      onExport={(ids) => saveSpreadsheet('products', ids)}
+      onDuplicate={(p) => duplicateRow('products', p.id)}
       summary={(p) => (
         <div className="flex items-center gap-3">
           {p.image ? (

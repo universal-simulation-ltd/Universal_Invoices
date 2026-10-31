@@ -3,7 +3,7 @@
 // `updatedAt` wins per row) rather than replacing: restoring the Mac's backup
 // on the Windows box must not delete what was only ever made on Windows.
 
-import type { Client, Company, InvoiceDoc, Product } from './types';
+import type { Client, Company, Folder, InvoiceDoc, Product } from './types';
 
 export const BACKUP_APP = 'universal-invoices';
 export const BACKUP_VERSION = 1;
@@ -15,10 +15,12 @@ export interface Backup {
   companies: Company[];
   clients: Client[];
   products: Product[];
+  /** The catalogue's folders. Absent from a backup made before 2026-10-31. */
+  folders: Folder[];
   documents: InvoiceDoc[];
 }
 
-export type Dataset = Pick<Backup, 'companies' | 'clients' | 'products' | 'documents'>;
+export type Dataset = Pick<Backup, 'companies' | 'clients' | 'products' | 'folders' | 'documents'>;
 
 export function makeBackup(data: Dataset, now = new Date()): Backup {
   return { app: BACKUP_APP, version: BACKUP_VERSION, exportedAt: now.toISOString(), ...data };
@@ -39,7 +41,7 @@ export function parseBackup(text: string): Backup {
   for (const key of ['companies', 'clients', 'products', 'documents'] as const) {
     if (!Array.isArray(b[key])) throw new Error(`That backup is damaged: "${key}" is missing.`);
   }
-  return b as Backup;
+  return { ...b, folders: Array.isArray(b.folders) ? b.folders : [] } as Backup;
 }
 
 /**
@@ -69,6 +71,7 @@ export function mergeDataset(current: Dataset, incoming: Dataset): { write: Data
     companies: pick(current.companies, incoming.companies),
     clients: pick(current.clients, incoming.clients),
     products: pick(current.products, incoming.products),
+    folders: pick(current.folders, incoming.folders),
     documents: pick(current.documents, incoming.documents),
   };
   return { write, added, updated };

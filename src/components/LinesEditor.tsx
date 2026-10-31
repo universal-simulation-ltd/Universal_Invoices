@@ -1,6 +1,7 @@
 import { computeTotals, formatMoney, wantsDecimals } from '@unisim/doc';
+import { arrange } from '../lib/arrange';
 import { blankLine, lineFromProduct } from '../lib/convert';
-import type { DocLine, InvoiceDoc, Product } from '../lib/types';
+import type { DocLine, Folder, InvoiceDoc, Product } from '../lib/types';
 import ImagePicker from './ImagePicker';
 import { DecimalInput, MoneyInput, btnGhost, btnIcon, inputCls, labelCls, selectBase } from './ui';
 
@@ -12,11 +13,14 @@ import { DecimalInput, MoneyInput, btnGhost, btnIcon, inputCls, labelCls, select
 export default function LinesEditor({
   doc,
   products,
+  folders,
   defaultTaxRate,
   onChange,
 }: {
   doc: InvoiceDoc;
   products: Product[];
+  /** The catalogue's folders: the picker groups by them, in the catalogue's order. */
+  folders: Folder[];
   defaultTaxRate: number;
   onChange: (lines: DocLine[]) => void;
 }) {
@@ -26,6 +30,11 @@ export default function LinesEditor({
   const decimals = wantsDecimals({ lines: doc.lines, taxMode: doc.taxMode, decimals: undefined });
   const money = (v: number) => formatMoney(v, doc.currency, doc.numberStyle, decimals);
 
+  const option = (p: Product) => (
+    <option key={p.id} value={p.id}>
+      {[p.code, p.description.split('\n')[0]].filter(Boolean).join(' — ').slice(0, 80)}
+    </option>
+  );
   const set = (i: number, patch: Partial<DocLine>) => onChange(doc.lines.map((l, n) => (n === i ? { ...l, ...patch } : l)));
   const move = (i: number, by: -1 | 1) => {
     const next = [...doc.lines];
@@ -123,13 +132,17 @@ export default function LinesEditor({
             }}
           >
             <option value="">+ Add from catalogue…</option>
-            {[...products]
-              .sort((a, b) => a.code.localeCompare(b.code))
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {[p.code, p.description.split('\n')[0]].filter(Boolean).join(' — ').slice(0, 80)}
-                </option>
-              ))}
+            {arrange(products, folders).map((e) =>
+              e.kind === 'folder' ? (
+                e.items.length > 0 && (
+                  <optgroup key={e.folder.id} label={e.folder.name}>
+                    {e.items.map(option)}
+                  </optgroup>
+                )
+              ) : (
+                option(e.product)
+              ),
+            )}
           </select>
         )}
         <button type="button" className={btnGhost} onClick={() => onChange([...doc.lines, blankLine(taxed ? defaultTaxRate : undefined)])}>

@@ -47,8 +47,8 @@ const missing = (e: { code?: string; message?: string } | null) =>
   !!e && (e.code === '42P01' || e.code === 'PGRST205' || e.code === 'PGRST202' || /does not exist|schema cache/i.test(e.message ?? ''));
 
 const fingerprint = () => {
-  const { companies, clients, products, documents } = useAppStore.getState();
-  return JSON.stringify([companies, clients, products, documents, readTombstones().length]);
+  const { companies, clients, products, folders, documents } = useAppStore.getState();
+  return JSON.stringify([companies, clients, products, folders, documents, readTombstones().length]);
 };
 
 /** The menu's controls, set while the engine is mounted. */
@@ -61,6 +61,7 @@ export default function CloudBackup() {
   const companies = useAppStore((s) => s.companies);
   const clients = useAppStore((s) => s.clients);
   const products = useAppStore((s) => s.products);
+  const folders = useAppStore((s) => s.folders);
   const documents = useAppStore((s) => s.documents);
   const setCloud = useAppStore((s) => s.setCloud);
   const applyCloud = useAppStore((s) => s.applyCloud);
@@ -106,7 +107,7 @@ export default function CloudBackup() {
         // Something new online: another device, or this browser's first time.
         const s = useAppStore.getState();
         const merge = mergeCloud(
-          { companies: s.companies, clients: s.clients, products: s.products, documents: s.documents },
+          { companies: s.companies, clients: s.clients, products: s.products, folders: s.folders, documents: s.documents },
           readTombstones(),
           unpack(row.data),
         );
@@ -124,7 +125,7 @@ export default function CloudBackup() {
 
       const s = useAppStore.getState();
       const print = fingerprint();
-      const text = pack({ companies: s.companies, clients: s.clients, products: s.products, documents: s.documents }, readTombstones());
+      const text = pack({ companies: s.companies, clients: s.clients, products: s.products, folders: s.folders, documents: s.documents }, readTombstones());
       const cap = limit.current ?? FALLBACK_LIMIT;
       if (text.length > cap) {
         setCloud({ status: 'too-large', bytes: text.length, message: null });
@@ -195,7 +196,7 @@ export default function CloudBackup() {
       if (timer.current) clearTimeout(timer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- as above
-  }, [companies, clients, products, documents]);
+  }, [companies, clients, products, folders, documents]);
 
   // Coming back to the tab: pick up what another device did meanwhile.
   useEffect(() => {

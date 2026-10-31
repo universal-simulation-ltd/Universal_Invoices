@@ -16,7 +16,7 @@ const STATUSES: DocStatus[] = ['draft', 'sent', 'accepted', 'declined', 'paid', 
  * room the preview needs.
  */
 export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
-  const { companies, clients, products, documents, updateDocument, deleteMany, convert, duplicate, open, saveClient } = useAppStore();
+  const { companies, clients, products, folders, documents, updateDocument, deleteMany, convert, duplicate, open, saveClient } = useAppStore();
   const company = companies.find((c) => c.id === doc.companyId);
   const source = doc.sourceId ? documents.find((d) => d.id === doc.sourceId) : undefined;
   const [pane, setPane] = useState<'edit' | 'preview'>('edit');
@@ -251,7 +251,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
           <section className={card}>
             <h2 className={sectionTitle}>Lines</h2>
             <div className="mt-3">
-              <LinesEditor doc={doc} products={products} defaultTaxRate={company?.defaults.taxRate ?? 20} onChange={(lines) => set({ lines })} />
+              <LinesEditor doc={doc} products={products} folders={folders} defaultTaxRate={company?.defaults.taxRate ?? 20} onChange={(lines) => set({ lines })} />
             </div>
           </section>
 

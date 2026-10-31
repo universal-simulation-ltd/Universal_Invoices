@@ -105,6 +105,24 @@ export interface Product {
   listPrice?: number;
   taxRate?: number;
   image?: StoredImage;
+  /** The catalogue folder it sits in (lib/arrange.ts); unknown or gone = the top level. */
+  folderId?: string;
+  /** Its place in its folder or at the top level, dragged into place. None yet = after the placed ones, by code. */
+  order?: number;
+  updatedAt: number;
+}
+
+/**
+ * A folder in the catalogue (James, 2026-10-31: "allow click and drag to
+ * reorganise catalogue, have option to create a folder and drag items in").
+ * One level: folders hold products, not folders. Deleting one moves its
+ * products back out — it never deletes them.
+ */
+export interface Folder {
+  id: string;
+  name: string;
+  /** Its place among the top level's folders and loose products. */
+  order?: number;
   updatedAt: number;
 }
 

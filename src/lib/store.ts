@@ -1,19 +1,21 @@
-// IndexedDB persistence. Four object stores, one record per row, keyed by
+// IndexedDB persistence. Five object stores, one record per row, keyed by
 // `id`. No dependency — the same 40-line wrapper PalsPayIn uses, because the
 // app's whole pitch is being small and local.
 
-import type { Client, Company, InvoiceDoc, Product } from './types';
+import type { Client, Company, Folder, InvoiceDoc, Product } from './types';
 
 const DB_NAME = 'universal-invoices';
-const DB_VERSION = 1;
+// 2: `folders` (the catalogue's, 2026-10-31). onupgradeneeded only adds what is missing.
+const DB_VERSION = 2;
 
-export const TABLES = ['companies', 'clients', 'products', 'documents'] as const;
+export const TABLES = ['companies', 'clients', 'products', 'folders', 'documents'] as const;
 export type Table = (typeof TABLES)[number];
 
 export interface Rows {
   companies: Company;
   clients: Client;
   products: Product;
+  folders: Folder;
   documents: InvoiceDoc;
 }
 

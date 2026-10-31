@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { move, type Target } from '../lib/arrange';
 import { makeBackup, mergeDataset, parseBackup } from '../lib/backup';
 import { convertDocument, duplicateDocument, newDocument, uid } from '../lib/convert';
 import { exampleData } from '../lib/example';
@@ -7,7 +8,7 @@ import type { CloudMerge } from '../lib/cloud';
 import { recordDeleted } from '../lib/deletions';
 import { todayIso } from '../lib/numbering';
 import { loadAll, put, putMany, remove, removeMany, type Rows, type Table } from '../lib/store';
-import type { BusinessDocKind, Client, Company, InvoiceDoc, Product } from '../lib/types';
+import type { BusinessDocKind, Client, Company, Folder, InvoiceDoc, Product } from '../lib/types';
 
 export type Tab = 'documents' | 'clients' | 'catalogue' | 'companies';
 
@@ -16,6 +17,8 @@ interface AppState {
   companies: Company[];
   clients: Client[];
   products: Product[];
+  /** The catalogue's folders (lib/arrange.ts). */
+  folders: Folder[];
   documents: InvoiceDoc[];
   tab: Tab;
   /** The document open in the editor, if any. */
@@ -47,6 +50,12 @@ interface AppState {
   syncCompany: (c: Company) => Promise<void>;
   /** "Duplicate" on a company, client or catalogue item: a copy you own — never live, never an example. Returns it. */
   duplicateRow: <K extends 'companies' | 'clients' | 'products'>(table: K, id: string) => Promise<Rows[K] | undefined>;
+  /** A new folder (at the top of the catalogue) or a renamed one. */
+  saveFolder: (f: Folder) => Promise<void>;
+  /** Deletes the folder only: its products move out to where it was. */
+  deleteFolder: (id: string) => Promise<void>;
+  /** Drag and drop in the catalogue: a product or folder to its new place. */
+  moveInCatalogue: (id: string, target: Target) => Promise<void>;
   /** "Delete" and "Delete selected", for every list. */
   deleteMany: (table: Table, ids: string[]) => Promise<void>;
 
@@ -132,7 +141,7 @@ export const useAppStore = create<AppState>((set, get) => {
    * example goes. Called after every create; a no-op once the example is gone.
    */
   async function dropExample<K extends Table>(table: K) {
-    const rows = get()[table] as Rows[K][];
+    const rows = get()[table] as unknown as (Rows[K] & { example?: boolean })[];
     const examples = rows.filter((r) => r.example).map((r) => r.id);
     if (!examples.length) return;
     const openId = get().openId;
@@ -165,6 +174,7 @@ export const useAppStore = create<AppState>((set, get) => {
     companies: [],
     clients: [],
     products: [],
+    folders: [],
     documents: [],
     tab: 'documents',
     openId: null,
@@ -200,6 +210,39 @@ export const useAppStore = create<AppState>((set, get) => {
       set({ products: [...get().products, ...fresh] });
       await putMany({ companies: [], clients: [], products: fresh, documents: [] });
       await dropExample('products');
+    },
+    saveFolder: async (f) => {
+      const next = { ...f, updatedAt: Date.now() };
+      set({ folders: upsert(get().folders, next) });
+      await put('folders', next);
+    },
+    deleteFolder: async (id) => {
+      const { folders, products } = get();
+      const folder = folders.find((f) => f.id === id);
+      if (!folder) return;
+      // Its products take the folder's place, in their order, then the folder goes.
+      let rest = products;
+      let moved: Product[] = [];
+      for (const p of products.filter((x) => x.folderId === id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))) {
+        const change = move(rest, folders, p.id, { parent: null, before: id });
+        moved = [...moved.filter((m) => !change.products.some((c) => c.id === m.id)), ...change.products];
+        rest = change.products.reduce(upsert, rest);
+      }
+      const now = Date.now();
+      const write = moved.map((p) => ({ ...p, updatedAt: now }));
+      set({ products: write.reduce(upsert, products) });
+      await putMany({ products: write });
+      await get().deleteMany('folders', [id]);
+    },
+    moveInCatalogue: async (id, target) => {
+      const { products, folders } = get();
+      const change = move(products, folders, id, target);
+      if (!change.products.length && !change.folders.length) return;
+      const now = Date.now();
+      const p = change.products.map((r) => ({ ...r, updatedAt: now }));
+      const f = change.folders.map((r) => ({ ...r, updatedAt: now }));
+      set({ products: p.reduce(upsert, products), folders: f.reduce(upsert, folders) });
+      await putMany({ products: p, folders: f });
     },
     syncCompany: (c) => saveRow('companies', c),
     duplicateRow: async (table, id) => {
@@ -313,18 +356,19 @@ export const useAppStore = create<AppState>((set, get) => {
       await putMany(write);
     },
     backupJson: () => {
-      const { companies, clients, products, documents } = get();
-      return JSON.stringify(makeBackup({ companies, clients, products, documents }), null, 2);
+      const { companies, clients, products, folders, documents } = get();
+      return JSON.stringify(makeBackup({ companies, clients, products, folders, documents }), null, 2);
     },
     restore: async (text) => {
       const incoming = parseBackup(text);
-      const { companies, clients, products, documents } = get();
-      const { write, added: n, updated } = mergeDataset({ companies, clients, products, documents }, incoming);
+      const { companies, clients, products, folders, documents } = get();
+      const { write, added: n, updated } = mergeDataset({ companies, clients, products, folders, documents }, incoming);
       await putMany(write);
       set({
         companies: write.companies.reduce(upsert, companies),
         clients: write.clients.reduce(upsert, clients),
         products: write.products.reduce(upsert, products),
+        folders: write.folders.reduce(upsert, folders),
         documents: write.documents.reduce(upsert, documents),
         notice:
           n + updated === 0
@@ -339,8 +383,8 @@ export const useAppStore = create<AppState>((set, get) => {
     setCloud: (patch) => set({ cloud: { ...get().cloud, ...patch } }),
     applyCloud: async (merge) => {
       const s = get();
-      const next = {} as Pick<AppState, 'companies' | 'clients' | 'products' | 'documents'>;
-      for (const table of ['companies', 'clients', 'products', 'documents'] as const) {
+      const next = {} as Pick<AppState, 'companies' | 'clients' | 'products' | 'folders' | 'documents'>;
+      for (const table of ['companies', 'clients', 'products', 'folders', 'documents'] as const) {
         const gone = new Set(merge.remove[table]);
         const rows = (s[table] as { id: string }[]).filter((r) => !gone.has(r.id));
         (next as Record<string, unknown>)[table] = (merge.write[table] as { id: string }[]).reduce(upsert, rows);
@@ -354,8 +398,8 @@ export const useAppStore = create<AppState>((set, get) => {
       }
     },
     spreadsheet: (table, ids) => {
-      const { companies, clients, products, documents } = get();
-      const all = { companies, clients, products, documents };
+      const { companies, clients, products, folders, documents } = get();
+      const all = { companies, clients, products, folders, documents };
       const data = table && ids ? selectionFor(all, table, ids) : all;
       // One company: named after it. Otherwise the app and the day.
       const one = table === 'companies' && ids?.length === 1 ? companies.find((c) => c.id === ids[0])?.name : undefined;
@@ -363,8 +407,8 @@ export const useAppStore = create<AppState>((set, get) => {
       return { bytes: exportXlsx(data), name: name.replace(/[\\/:*?"<>|]/g, ' ') };
     },
     importSpreadsheet: async (bytes, confirm) => {
-      const { companies, clients, products, documents } = get();
-      const plan = planImport({ companies, clients, products, documents }, bytes);
+      const { companies, clients, products, folders, documents } = get();
+      const plan = planImport({ companies, clients, products, folders, documents }, bytes);
       if (plan.added + plan.updated === 0) {
         set({ notice: 'Nothing to import — everything in that spreadsheet is already here.' });
         return;
@@ -373,7 +417,7 @@ export const useAppStore = create<AppState>((set, get) => {
         const k = plan.write[t].length;
         return k ? `${k} ${k === 1 ? one : many}` : '';
       };
-      const what = [count('companies', 'company', 'companies'), count('clients', 'client', 'clients'), count('products', 'catalogue item', 'catalogue items'), count('documents', 'document', 'documents')]
+      const what = [count('companies', 'company', 'companies'), count('clients', 'client', 'clients'), count('products', 'catalogue item', 'catalogue items'), count('folders', 'folder', 'folders'), count('documents', 'document', 'documents')]
         .filter(Boolean)
         .join(', ');
       const message = [
@@ -387,6 +431,7 @@ export const useAppStore = create<AppState>((set, get) => {
         companies: plan.write.companies.reduce(upsert, companies),
         clients: plan.write.clients.reduce(upsert, clients),
         products: plan.write.products.reduce(upsert, products),
+        folders: plan.write.folders.reduce(upsert, folders),
         documents: plan.write.documents.reduce(upsert, documents),
         notice: `Imported: ${plan.added} added, ${plan.updated} updated. Nothing already here was deleted.`,
       });

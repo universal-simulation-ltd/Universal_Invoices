@@ -97,7 +97,7 @@ describe('documents', () => {
 
 describe('backup', () => {
   const { company, client, product, doc } = exampleData('2026-10-29');
-  const data = { companies: [company], clients: [client], products: [product], documents: [doc] };
+  const data = { companies: [company], clients: [client], products: [product], folders: [], documents: [doc] };
 
   it('round-trips', () => {
     const back = parseBackup(JSON.stringify(makeBackup(data)));

@@ -19,6 +19,7 @@ function realData(): Dataset {
     companies: [{ ...real(company), logo: img }],
     clients: [real(client)],
     products: [{ ...real(product), image: img }],
+    folders: [],
     documents: [{ ...real(doc), lines: doc.lines.map((l) => ({ ...l, image: img })) }],
   };
 }
@@ -82,7 +83,7 @@ describe('spreadsheet export and import', () => {
   });
   it('leaves the examples out', () => {
     const { company, client, product, doc } = exampleData('2026-10-30');
-    const sheets = toWorkbook({ companies: [company], clients: [client], products: [product], documents: [doc] });
+    const sheets = toWorkbook({ companies: [company], clients: [client], products: [product], folders: [], documents: [doc] });
     expect(sheets.slice(1).every((s) => s.rows.length === 1)).toBe(true);
   });
   it('re-importing an unchanged export changes nothing', () => {
@@ -92,7 +93,7 @@ describe('spreadsheet export and import', () => {
   });
   it('imports everything into an empty account — pictures aside', () => {
     const data = realData();
-    const empty: Dataset = { companies: [], clients: [], products: [], documents: [] };
+    const empty: Dataset = { companies: [], clients: [], products: [], folders: [], documents: [] };
     const plan = planImport(empty, exportXlsx(data), 1, ids);
     expect(plan.added).toBe(4);
     const doc = plan.write.documents[0];
@@ -126,7 +127,7 @@ describe('spreadsheet export and import', () => {
     const data = realData();
     const only = selectionFor(data, 'documents', [data.documents[0].id]);
     const sheets = toWorkbook({ ...only, companies: [] });
-    const plan = planImport({ companies: [], clients: [], products: [], documents: [] }, writeXlsx(sheets), 1, ids);
+    const plan = planImport({ companies: [], clients: [], products: [], folders: [], documents: [] }, writeXlsx(sheets), 1, ids);
     expect(plan.write.companies).toHaveLength(1);
     expect(plan.write.companies[0].name).toBe(data.documents[0].issuer.name);
     expect(plan.notes.length).toBe(1);
@@ -137,6 +138,24 @@ describe('spreadsheet export and import', () => {
     const doc = selectionFor(data, 'documents', [data.documents[0].id]);
     expect([doc.companies.length, doc.clients.length, doc.products.length]).toEqual([1, 1, 1]);
     expect(selectionFor(data, 'clients', [data.clients[0].id]).documents).toHaveLength(0);
+  });
+  it('carries catalogue folders by name: found, made, or cleared', () => {
+    const data = realData();
+    const folder = { id: 'F', name: 'Services', updatedAt: 0 };
+    const product = { ...data.products[0], folderId: 'F' };
+    const sheets = toWorkbook({ ...data, products: [product], folders: [folder] });
+    const catalogue = sheets[3];
+    const col = catalogue.rows[0].indexOf('Folder');
+    expect(catalogue.rows[1][col]).toBe('Services');
+    // Into a browser with no folders: the folder is made and the item goes in it.
+    const fresh = planImport({ companies: [], clients: [], products: [], folders: [], documents: [] }, writeXlsx(sheets), 1, ids);
+    expect(fresh.write.folders.map((f) => f.name)).toEqual(['Services']);
+    expect(fresh.write.products[0].folderId).toBe(fresh.write.folders[0].id);
+    // Back where it came from, with the cell cleared: out of the folder, no folder made.
+    catalogue.rows[1][col] = '';
+    const here = planImport({ ...data, products: [product], folders: [folder] }, writeXlsx(sheets), 1, ids);
+    expect(here.write.folders).toHaveLength(0);
+    expect(here.write.products[0].folderId).toBeUndefined();
   });
   it('refuses a spreadsheet that is not one of ours', () => {
     expect(() => planImport(realData(), writeXlsx([{ name: 'Budget', rows: [['a']] }]), 1, ids)).toThrow(/none of the Companies/);

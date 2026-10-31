@@ -18,6 +18,7 @@
 //
 // Pure, so the tests run it in Node.
 
+import { arrange, flatten } from './arrange';
 import { uid } from './convert';
 import { defaultNumbering } from './numbering';
 import type { Dataset } from './backup';
@@ -31,6 +32,7 @@ import {
   type CurrencyCode,
   type DocLine,
   type DocStatus,
+  type Folder,
   type InvoiceDoc,
   type Product,
   type TaxMode,
@@ -148,8 +150,10 @@ const CLIENT_COLUMNS: Column<Client>[] = [
   { header: 'Email', width: 24, get: (c) => c.email },
 ];
 
-const PRODUCT_COLUMNS: Column<Product>[] = [
+/** `folder` is the name of the folder it sits in (the catalogue's arrangement). */
+const PRODUCT_COLUMNS: Column<Product & { folder: string }>[] = [
   { header: 'ID', width: 14, get: (p) => p.id },
+  { header: 'Folder', width: 16, get: (p) => p.folder || null },
   { header: 'Code', width: 14, get: (p) => p.code },
   { header: 'Description', width: 40, get: (p) => p.description },
   { header: 'Unit', width: 8, get: (p) => p.unit },
@@ -219,6 +223,7 @@ const README: Cell[][] = [
   ['Keep a row’s ID and the import updates that row. Leave ID empty to add a new one.'],
   ['Prices are in the currency’s units (1234.50, not cents). Dates are written 2026-10-30.'],
   ['Columns are found by their header, so you can reorder them — but keep the header names.'],
+  ['On the Catalogue sheet, Folder is the folder an item sits in: type a new name to make that folder, or clear it to take the item out.'],
   ['Pictures (logos, catalogue images) are not in a spreadsheet. Use Advanced → Export a backup for a complete copy.'],
 ];
 
@@ -234,11 +239,14 @@ function table<T>(name: string, columns: Column<T>[], rows: T[]): Sheet {
 export function toWorkbook(data: Dataset): Sheet[] {
   const real = <T extends { example?: boolean }>(xs: T[]) => xs.filter((x) => !x.example);
   const documents = real(data.documents);
+  // In the catalogue's own order, folder by folder.
+  const folderName = new Map(data.folders.map((f) => [f.id, f.name]));
+  const products = flatten(arrange(real(data.products), data.folders)).map((p) => ({ ...p, folder: (p.folderId && folderName.get(p.folderId)) || '' }));
   return [
     { name: 'Read me', rows: README, widths: [110] },
     table(SHEETS.companies, COMPANY_COLUMNS, real(data.companies)),
     table(SHEETS.clients, CLIENT_COLUMNS, real(data.clients)),
-    table(SHEETS.products, PRODUCT_COLUMNS, real(data.products)),
+    table(SHEETS.products, PRODUCT_COLUMNS, products),
     table(SHEETS.documents, DOCUMENT_COLUMNS, documents),
     table(SHEETS.lines, LINE_COLUMNS, documents.flatMap((doc) => doc.lines.map((line) => ({ doc, line })))),
   ];
@@ -277,7 +285,10 @@ export function selectionFor(data: Dataset, table: keyof Dataset, ids: string[])
     clients = data.clients.filter((c) => clientIds.has(c.id));
     products = data.products.filter((p) => productIds.has(p.id));
   }
-  return { companies, clients, products, documents };
+  // The folders those catalogue items sit in, so they import into the same ones.
+  const folderIds = new Set(products.flatMap((p) => (p.folderId ? [p.folderId] : [])));
+  const folders = data.folders.filter((f) => folderIds.has(f.id));
+  return { companies, clients, products, folders, documents };
 }
 
 // ── Importing ────────────────────────────────────────────────────────────────
@@ -296,6 +307,12 @@ function rowsOf(sheets: Sheet[], name: string): Row[] {
       const i = headers.indexOf(header.toLowerCase());
       return i < 0 ? undefined : r[i];
     });
+}
+
+/** Whether a sheet has this column at all — an empty cell reads the same as a missing column. */
+function hasColumn(sheets: Sheet[], name: string, header: string): boolean {
+  const sheet = sheets.find((s) => s.name.trim().toLowerCase() === name.toLowerCase());
+  return !!sheet?.rows[0]?.some((h) => str(h).toLowerCase() === header.toLowerCase());
 }
 
 const optional = (v: string) => v || undefined;
@@ -335,7 +352,7 @@ export function planImport(current: Dataset, bytes: Uint8Array, now = Date.now()
   const notes: string[] = [];
   let added = 0;
   let updated = 0;
-  const write: Dataset = { companies: [], clients: [], products: [], documents: [] };
+  const write: Dataset = { companies: [], clients: [], products: [], folders: [], documents: [] };
 
   /** Add, update or skip one row; returns the row as it now stands. */
   function settle<T extends { id: string; updatedAt: number }>(table: keyof Dataset, existing: T | undefined, next: T): T {
@@ -407,12 +424,26 @@ export function planImport(current: Dataset, bytes: Uint8Array, now = Date.now()
     clients.set(id, settle('clients', old, next));
   }
 
+  // A folder is found by its name (any case); a name not here yet makes one.
+  const folders = new Map(current.folders.map((f) => [f.name.trim().toLowerCase(), f]));
+  const folderFor = (name: string): Folder => {
+    const have = folders.get(name.toLowerCase());
+    if (have) return have;
+    const made: Folder = { id: makeId(), name, updatedAt: now };
+    folders.set(name.toLowerCase(), settle('folders', undefined, made));
+    return made;
+  };
+
   const products = new Map(current.products.map((p) => [p.id, p]));
+  const folderColumn = hasColumn(sheets, SHEETS.products, 'Folder');
   for (const r of rowsOf(sheets, SHEETS.products)) {
     const id = idOf(r) || makeId();
     const old = products.get(id);
     const description = str(r('Description'));
     if (!description && !str(r('Code')) && !old) continue;
+    // No Folder column (an older sheet) leaves an item where it is.
+    const folderName = folderColumn ? str(r('Folder')) : undefined;
+    const folderId = folderName === undefined ? old?.folderId : folderName ? folderFor(folderName).id : undefined;
     const next: Product = {
       ...old,
       id,
@@ -422,11 +453,13 @@ export function planImport(current: Dataset, bytes: Uint8Array, now = Date.now()
       unitPrice: toMinor(r('Unit price')) ?? 0,
       listPrice: toMinor(r('List price')),
       taxRate: toNumber(r('VAT rate %')),
+      folderId,
       updatedAt: now,
     };
     delete next.example;
     if (next.listPrice === undefined) delete next.listPrice;
     if (next.taxRate === undefined) delete next.taxRate;
+    if (next.folderId === undefined) delete next.folderId;
     products.set(id, settle('products', old, next));
   }
 

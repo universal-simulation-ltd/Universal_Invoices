@@ -4,7 +4,7 @@ import { formatBytes, mergeCloud, pack, pruneTombstones, unpack, type CloudPaylo
 import type { Client } from './types';
 
 const client = (id: string, updatedAt: number, name = id): Client => ({ id, name, address: [], reference: '', email: '', updatedAt });
-const data = (clients: Client[]): Dataset => ({ companies: [], clients, products: [], documents: [] });
+const data = (clients: Client[]): Dataset => ({ companies: [], clients, products: [], folders: [], documents: [] });
 const copy = (clients: Client[], deleted: CloudPayload['deleted'] = []): CloudPayload => ({ app: 'universal-invoices', version: 1, savedAt: 0, ...data(clients), deleted });
 
 describe('online backup', () => {

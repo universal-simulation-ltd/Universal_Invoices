@@ -29,6 +29,10 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   row appears as you type in the last), drop a picture on a product to set it,
   or drop many pictures on the Catalogue tab to make one product each, coded by
   the file name.
+- **Arrange the catalogue:** drag products by their handle into the order you
+  want (a mouse, a finger or the ↑ ↓ keys), make folders and drag products into
+  them. "Add from catalogue" on a document follows the same order, grouped by
+  folder; the spreadsheet has a Folder column.
 - **Spreadsheets in and out:** export one item, a selection or everything to an
   `.xlsx` workbook (Companies, Clients, Catalogue, Documents, Lines, plus a Read
   me sheet) — a company brings its documents, a document brings its company,

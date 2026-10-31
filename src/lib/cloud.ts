@@ -67,6 +67,7 @@ export function unpack(text: string): CloudPayload {
     companies: payload.companies ?? [],
     clients: payload.clients ?? [],
     products: payload.products ?? [],
+    folders: payload.folders ?? [],
     documents: payload.documents ?? [],
     deleted: payload.deleted ?? [],
   };
@@ -102,11 +103,11 @@ export interface CloudMerge {
 export function mergeCloud(local: Dataset, localDeleted: Tombstone[], remote: CloudPayload): CloudMerge {
   const deleted = pruneTombstones([...localDeleted, ...remote.deleted]);
   const tomb = new Map(deleted.map((t) => [`${t.table}:${t.id}`, t.at]));
-  const write: Dataset = { companies: [], clients: [], products: [], documents: [] };
-  const remove = { companies: [], clients: [], products: [], documents: [] } as CloudMerge['remove'];
+  const write: Dataset = { companies: [], clients: [], products: [], folders: [], documents: [] };
+  const remove = { companies: [], clients: [], products: [], folders: [], documents: [] } as CloudMerge['remove'];
   let localAhead = false;
 
-  const tables: Table[] = ['companies', 'clients', 'products', 'documents'];
+  const tables: Table[] = ['companies', 'clients', 'products', 'folders', 'documents'];
   for (const table of tables) {
     const mine = new Map((local[table] as { id: string; updatedAt: number; example?: boolean }[]).map((r) => [r.id, r]));
     const theirs = new Map((remote[table] as { id: string; updatedAt: number; example?: boolean }[]).map((r) => [r.id, r]));

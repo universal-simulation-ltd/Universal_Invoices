@@ -1,13 +1,14 @@
-import { useState, type DragEvent } from 'react';
+import { useMemo, useState, type DragEvent } from 'react';
 import { formatMoney } from '@unisim/doc';
+import { arrange, flatten, step } from '../lib/arrange';
 import { uid } from '../lib/convert';
 import { codeFromFileName, isPicture, toStored } from '../lib/picture';
-import type { NumberStyle, Product } from '../lib/types';
+import type { Folder, NumberStyle, Product } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
 import ImagePicker from './ImagePicker';
 import { saveSpreadsheet } from './exportSheet';
-import RecordList from './RecordList';
-import { DecimalInput, Field, MoneyInput, btnGhost, btnPrimary, card, inputCls } from './ui';
+import RecordList, { type TreeNode } from './RecordList';
+import { DecimalInput, Field, MoneyInput, btnGhost, btnPrimary, card, confirmAction, inputCls } from './ui';
 
 const PRODUCT_EDGE = 240;
 
@@ -144,15 +145,87 @@ function NewProducts({ style, onDone }: { style: NumberStyle; onDone: () => void
   );
 }
 
+/** A folder's heading: its name (click to rename), how many it holds, Delete. */
+function FolderTitle({ folder, count, fresh, onRenamed }: { folder: Folder; count: number; fresh: boolean; onRenamed: () => void }) {
+  const { saveFolder, deleteFolder } = useAppStore();
+  const [name, setName] = useState<string | null>(fresh ? folder.name : null);
+  const done = async () => {
+    const next = name?.trim();
+    setName(null);
+    onRenamed();
+    if (next && next !== folder.name) await saveFolder({ ...folder, name: next });
+  };
+  return (
+    <div className="flex items-center gap-2">
+      {name !== null ? (
+        <input
+          className={`${inputCls} max-w-xs py-1`}
+          value={name}
+          aria-label="Folder name"
+          autoFocus
+          onFocus={(e) => e.currentTarget.select()}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => void done()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void done();
+            if (e.key === 'Escape') {
+              setName(null);
+              onRenamed();
+            }
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          className="min-w-0 truncate rounded-md px-1 text-left font-semibold text-slate-900 hover:bg-slate-200 dark:text-slate-100 dark:hover:bg-slate-800"
+          title="Rename this folder"
+          onClick={() => setName(folder.name)}
+        >
+          {folder.name}
+        </button>
+      )}
+      <span className="shrink-0 text-sm text-slate-500 dark:text-slate-400">{count}</span>
+      <button
+        type="button"
+        className="ml-auto shrink-0 rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950 dark:hover:text-red-400"
+        onClick={async () => {
+          const what = count ? ` Its ${count} product${count === 1 ? '' : 's'} move out of it — none is deleted.` : '';
+          if (confirmAction(`Delete the folder “${folder.name}”?${what}`)) await deleteFolder(folder.id);
+        }}
+      >
+        Delete folder
+      </button>
+    </div>
+  );
+}
+
 export default function CatalogueView() {
-  const { products, companies, saveProduct, deleteMany, loadExample, duplicateRow, addProducts } = useAppStore();
+  const { products, folders, companies, saveProduct, deleteMany, loadExample, duplicateRow, addProducts, saveFolder, moveInCatalogue } = useAppStore();
   const [adding, setAdding] = useState(false);
+  /** The folder just made: its name opens for typing. */
+  const [fresh, setFresh] = useState<string | null>(null);
   const [over, setOver] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   // Prices are typed in the first company's number style — the one you work in.
   const style: NumberStyle = companies[0]?.defaults.numberStyle ?? 'en';
   const currency = companies[0]?.defaults.currency ?? 'EUR';
-  const sorted = [...products].sort((a, b) => a.code.localeCompare(b.code));
+  // Folders and products in the order they were dragged into (lib/arrange.ts).
+  const entries = useMemo(() => arrange(products, folders), [products, folders]);
+  const sorted = useMemo(() => flatten(entries), [entries]);
+  const tree = useMemo(
+    () => entries.map((e): TreeNode<Product> => (e.kind === 'folder' ? { kind: 'folder', id: e.folder.id, rows: e.items } : { kind: 'row', row: e.product })),
+    [entries],
+  );
+
+  const newFolder = async () => {
+    // At the top, above everything, so it is in view.
+    const first = entries[0];
+    const top = first ? ((first.kind === 'folder' ? first.folder.order : first.product.order) ?? 0) : 0;
+    const folder: Folder = { id: uid(), name: 'New folder', order: Math.min(0, top) - 1, updatedAt: Date.now() };
+    // Before it is saved: its heading reads `fresh` once, when it first appears.
+    setFresh(folder.id);
+    await saveFolder(folder);
+  };
 
   /** Pictures dropped on the tab, not on a product: one new product each. */
   const dropPictures = async (files: File[]) => {
@@ -201,6 +274,21 @@ export default function CatalogueView() {
       )}
       <RecordList<Product>
         rows={sorted}
+        tree={tree}
+        onMove={(id, target) => void moveInCatalogue(id, target)}
+        onStep={(id, dir) => {
+          const target = step(products, folders, id, dir);
+          if (target) void moveInCatalogue(id, target);
+        }}
+        folderHead={(id, count) => {
+          const folder = folders.find((f) => f.id === id);
+          return folder && <FolderTitle folder={folder} count={count} fresh={fresh === id} onRenamed={() => setFresh(null)} />;
+        }}
+        toolbar={
+          <button type="button" className={btnGhost} disabled={adding} onClick={() => void newFolder()}>
+            New folder
+          </button>
+        }
         noun="product"
         make={blankProduct}
         emptyText="What you sell, with its price and picture. A line on a document starts from here, then you can change it there. Drop pictures here to make a product of each."

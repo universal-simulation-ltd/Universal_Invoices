@@ -64,6 +64,26 @@ describe('catalogue arrangement', () => {
     expect(move(products, [], 'a', { parent: null, before: 'a' })).toEqual({ products: [], folders: [] });
   });
 
+  it('several ticked products go together, in their order, from wherever they were', () => {
+    const products = [p('a', { order: 1 }), p('b', { order: 2 }), p('c', { folderId: 'G', order: 0 }), p('d', { order: 3 })];
+    const folders = [f('F', { order: 0 }), f('G', { order: 4 })];
+    // Ticked in any order; they land in the order they showed: a, b, then c (in G).
+    const next = apply(products, folders, move(products, folders, ['c', 'a', 'b'], { parent: 'F', before: null }));
+    expect(show(next.products, next.folders)).toBe('[F: a b c] d [G:]');
+  });
+
+  it('dropped on one of the moving rows, they land before the next that stays', () => {
+    const products = [p('a', { order: 0 }), p('b', { order: 1 }), p('c', { order: 2 }), p('d', { order: 3 })];
+    const next = apply(products, [], move(products, [], ['a', 'c'], { parent: null, before: 'c' }));
+    expect(show(next.products, [])).toBe('b a c d');
+  });
+
+  it('a folder moves alone', () => {
+    const products = [p('a')];
+    const folders = [f('F')];
+    expect(move(products, folders, ['F', 'a'], { parent: null, before: null })).toEqual({ products: [], folders: [] });
+  });
+
   it('flattens folder by folder, for selecting and the spreadsheet', () => {
     const products = [p('a', { folderId: 'F' }), p('b', { order: 0 })];
     expect(flatten(arrange(products, [f('F', { order: 1 })])).map((x) => x.id)).toEqual(['b', 'a']);

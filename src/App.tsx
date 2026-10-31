@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { DefaultViewSelect, UniversalAppsNavBar, UpdateNotice, useDefaultView } from '@unisim/sdk';
+import { DefaultViewSelect, UniversalAppsNavBar, UpdateNotice, useDefaultView, useUserPrefs } from '@unisim/sdk';
 import ProductLogo from './components/Header/ProductLogo';
 import AppMenu from './components/Header/AppMenu';
 import CatalogueView from './components/CatalogueView';
@@ -7,6 +7,9 @@ import ClientsView from './components/ClientsView';
 import CompaniesView from './components/CompaniesView';
 import DocumentEditor from './components/DocumentEditor';
 import DocumentsView from './components/DocumentsView';
+import TabBar from './components/TabBar';
+import TabOrderPreference from './components/TabOrderPreference';
+import { normaliseOrder, TAB_VALUES, TABS } from './lib/tabs';
 import { OrgSync } from './components/OrgSync';
 import CloudBackup from './components/CloudBackup';
 import { cloudFooter } from './components/cloudText';
@@ -21,19 +24,16 @@ export const CONTAINER = 'gutter mx-auto w-full max-w-[96rem]';
 
 const REPO_URL = 'https://github.com/universal-simulation-ltd/Universal_Invoices';
 
-const TABS: { value: Tab; label: string }[] = [
-  { value: 'documents', label: 'Documents' },
-  { value: 'clients', label: 'Clients' },
-  { value: 'catalogue', label: 'Catalogue' },
-  { value: 'companies', label: 'Your companies' },
-];
-const TAB_VALUES = TABS.map((t) => t.value);
-
 export default function App() {
   const { init, loaded, tab, setTab, openId, documents, notice, dismissNotice } = useAppStore();
   const cloudLine = cloudFooter(useAppStore((s) => s.cloud));
   const homeTab = useDefaultView<Tab>('home-tab', 'documents', { views: TAB_VALUES });
   const openDoc = openId ? documents.find((d) => d.id === openId) : undefined;
+  // Here, in a component that is always mounted, so a change made in Tune
+  // this app still reaches the account after the dialog shuts.
+  const { pref, setPref } = useUserPrefs();
+  const tabOrder = normaliseOrder(pref<unknown>('tabOrder', null));
+  const setTabOrder = (order: Tab[]) => setPref('tabOrder', order);
 
   useEffect(() => {
     void init().then(() => setTab(homeTab.defaultView));
@@ -50,7 +50,14 @@ export default function App() {
         productHomeHref={import.meta.env.BASE_URL}
         actions={<AppMenu />}
         themeStore={useThemeStore}
-        appPreferences={<DefaultViewSelect id="home-tab" label="Opens on" fallback="documents" views={TABS} />}
+        appPreferences={
+          <>
+            <DefaultViewSelect id="home-tab" label="Opens on" fallback="documents" views={TABS} />
+            <TabOrderPreference order={tabOrder} onOrder={setTabOrder} />
+          </>
+        }
+        // The SDK resets its own (Opens on, theme, language); the tab order is ours.
+        onResetDefaults={() => setPref('tabOrder', null)}
         suiteSwitcherIconSrc={`${import.meta.env.BASE_URL}unisim-icon.png`}
         // Signed in, the bar says whose it is — "Bradley’s Invoices" — and Tune
         // this app gets the account area, where App name keeps that, goes back
@@ -78,28 +85,9 @@ export default function App() {
         {!openDoc && (
           // A double tap on a tab makes it the one the app opens on (the suite
           // rule); "Opens on" in Tune this app is the same choice for anybody
-          // who cannot double-tap, and Reset to defaults clears it.
-          <nav className="mb-5 flex gap-1 overflow-x-auto rounded-xl bg-slate-200/70 p-1 dark:bg-slate-800/70" aria-label="Sections">
-            {TABS.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                {...homeTab.buttonProps(t.value, t.label)}
-                onClick={() => {
-                  homeTab.tap(t.value);
-                  setTab(t.value);
-                }}
-                aria-current={tab === t.value ? 'page' : undefined}
-                className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition-colors data-[default-view=true]:ring-2 data-[default-view=true]:ring-orange-400 ${
-                  tab === t.value
-                    ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100'
-                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </nav>
+          // who cannot double-tap, and Reset to defaults clears it. A drag
+          // moves a tab (TabBar).
+          <TabBar order={tabOrder} onOrder={setTabOrder} tab={tab} onTab={setTab} homeTab={homeTab} />
         )}
 
         {!loaded ? null : openDoc ? (

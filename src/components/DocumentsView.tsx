@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { computeTotals, formatDate, formatMoney, wantsDecimals } from '@unisim/doc';
 import { KIND_NAMES, KIND_ORDER, STATUS_NAMES, type BusinessDocKind, type DocStatus, type InvoiceDoc } from '../lib/types';
 import { ownCompanies, useAppStore } from '../stores/appStore';
+import { useActiveCompany } from './activeCompany';
 import { saveSpreadsheet } from './exportSheet';
 import { SelectCheckbox, SelectionBar, useSelection } from './selection';
 import { EmptyState, ExampleChip, btnGhost, btnPrimary, exampleBorder, inputCls, selectBase } from './ui';
@@ -22,12 +23,12 @@ function total(doc: InvoiceDoc): string {
 }
 
 export default function DocumentsView() {
-  const { companies, documents, createDocument, open, loadExample, deleteMany } = useAppStore();
+  const { companies, documents, createDocument, open, loadExample, deleteMany, setTab } = useAppStore();
   const [kind, setKind] = useState<BusinessDocKind | 'all'>('all');
   const [query, setQuery] = useState('');
-  const [companyId, setCompanyId] = useState<string>('');
   const mine = ownCompanies(companies);
-  const fromCompany = mine.find((c) => c.id === companyId) ?? mine[0];
+  // New documents come from the active company, chosen in Your companies.
+  const { active: fromCompany } = useActiveCompany();
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -43,16 +44,7 @@ export default function DocumentsView() {
 
       {/* "New …" is always here. With no company of your own yet, it opens the
           company form first (the store's companyPrompt) and the document after. */}
-      <div className="flex flex-wrap items-end gap-2">
-        {mine.length > 1 && (
-          <select className={selectBase} value={fromCompany?.id} onChange={(e) => setCompanyId(e.target.value)} aria-label="New documents from">
-            {mine.map((c) => (
-              <option key={c.id} value={c.id}>
-                From {c.name}
-              </option>
-            ))}
-          </select>
-        )}
+      <div className="flex flex-wrap items-center gap-2">
         <button type="button" className={btnPrimary} onClick={() => void createDocument('quote', fromCompany?.id)}>
           New quote
         </button>
@@ -61,6 +53,14 @@ export default function DocumentsView() {
             New {KIND_NAMES[k].toLowerCase()}
           </button>
         ))}
+        {mine.length > 1 && fromCompany && (
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            From <span className="font-medium text-slate-700 dark:text-slate-200">{fromCompany.name}</span> ·{' '}
+            <button type="button" className="font-medium text-orange-700 hover:underline dark:text-orange-400" onClick={() => setTab('companies')}>
+              change
+            </button>
+          </p>
+        )}
       </div>
 
       {documents.length === 0 ? (

@@ -23,7 +23,9 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   charge; or VAT per line, totalled per rate.
 - **English or French documents**, independent of how numbers are written
   (`163 000 €` or `€163,000`). Euro, pound and dollar.
-- **More than one company** if you trade under more than one name.
+- **More than one company** if you trade under more than one name. One is
+  **active** — new documents come from it, so there is no company to pick on
+  each one; switch it in Your companies.
 - **Duplicate** a company, client or catalogue item to start a new one from it.
 - **A catalogue that fills fast:** add several products at once in rows (a new
   row appears as you type in the last), drop a picture on a product to set it,
@@ -31,8 +33,11 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   the file name.
 - **Arrange the catalogue:** drag products by their handle into the order you
   want (a mouse, a finger or the ↑ ↓ keys), make folders and drag products into
-  them. "Add from catalogue" on a document follows the same order, grouped by
-  folder; the spreadsheet has a Folder column.
+  them — tick several and drag one to move them all. "Add from catalogue" on a
+  document follows the same order, grouped by folder; the spreadsheet has a
+  Folder column.
+- **Tabs in your order:** drag a tab along the bar (on a phone, hold it first),
+  or use Tune this app → Tab order. It follows your account when signed in.
 - **Spreadsheets in and out:** export one item, a selection or everything to an
   `.xlsx` workbook (Companies, Clients, Catalogue, Documents, Lines, plus a Read
   me sheet) — a company brings its documents, a document brings its company,

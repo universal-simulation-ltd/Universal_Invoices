@@ -147,7 +147,14 @@ export function DragHandle({ label, disabled, ...props }: { label: string; disab
   );
 }
 
-/** Where the dragged row will land. */
-export function DropLine() {
-  return <div className="mx-1 h-1 rounded-full bg-orange-500" aria-hidden="true" />;
+/** Where the dragged row will land — and, when several go together, how many. */
+export function DropLine({ label }: { label?: string }) {
+  if (!label) return <div className="mx-1 h-1 rounded-full bg-orange-500" aria-hidden="true" />;
+  return (
+    <div className="mx-1 flex items-center gap-2" aria-hidden="true">
+      <div className="h-1 flex-1 rounded-full bg-orange-500" />
+      <span className="rounded-full bg-orange-500 px-2 py-0.5 text-xs font-semibold text-white">{label}</span>
+      <div className="h-1 flex-1 rounded-full bg-orange-500" />
+    </div>
+  );
 }

@@ -40,6 +40,7 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
   onMove,
   onStep,
   folderHead,
+  aside,
 }: {
   rows: T[];
   make: () => T;
@@ -71,11 +72,14 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
   toolbar?: ReactNode;
   /** Folders and rows in their arranged order; `rows` is still the flat list, for selecting. */
   tree?: TreeNode<T>[];
-  onMove?: (id: string, target: Target) => void;
+  /** A drop: the dragged row, or every ticked row when the dragged one is ticked. */
+  onMove?: (ids: string[], target: Target) => void;
   /** ↑ / ↓ on a handle. */
   onStep?: (id: string, dir: -1 | 1) => void;
   /** A folder's heading, after its handle and its open/closed arrow: name, rename, delete. */
   folderHead?: (id: string, count: number) => ReactNode;
+  /** Beside a row's card, outside its button (Your companies' "Make active"). */
+  aside?: (row: T) => ReactNode;
 }) {
   const [dropOn, setDropOn] = useState<string | null>(null);
   const [draft, setDraft] = useState<T | null>(null);
@@ -90,13 +94,23 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
   const { drag, handle } = useArrangeDrag({
     levels,
     open: (id) => !closed.has(id),
-    onMove: (id, target) => onMove?.(id, target),
+    // Dragging a ticked row takes all the ticked ones with it; they are unticked once moved.
+    onMove: (id, target) => {
+      const many = sel.has(id) && sel.selected.size > 1;
+      onMove?.(many ? [...sel.selected] : [id], target);
+      if (many) sel.clear();
+    },
     onStep: (id, dir) => onStep?.(id, dir),
   });
   // Arranging waits while a row is open or new rows are being added.
   const still = draft !== null || !!adding;
+  // How many go with the dragged row: all the ticked ones, if it is one of them.
+  const carrying = drag?.kind === 'item' && sel.has(drag.id) ? sel.selected.size : 1;
+  const carried = (id: string) => drag !== null && (drag.id === id || (carrying > 1 && sel.has(id)));
   const lineAt = (parent: string | null, before: string | null) =>
-    drag?.target && drag.target.parent === parent && drag.target.before === before ? <DropLine /> : null;
+    drag?.target && drag.target.parent === parent && drag.target.before === before ? (
+      <DropLine label={carrying > 1 ? `${carrying} ${noun}s` : undefined} />
+    ) : null;
 
   useEffect(() => {
     if (!startNew) return;
@@ -163,7 +177,7 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
     ) : (
       <div
         key={row.id}
-        className={`flex items-stretch gap-3 ${drag?.id === row.id ? 'opacity-40' : ''}`}
+        className={`flex items-stretch gap-3 ${carried(row.id) ? 'opacity-40' : ''}`}
         data-drop={tree ? 'item' : undefined}
         data-id={row.id}
         data-parent={parent ?? ''}
@@ -208,6 +222,7 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
             summary(row)
           )}
         </button>
+        {aside && <div className="flex w-24 shrink-0 items-center justify-end">{aside(row)}</div>}
       </div>
     );
 
@@ -294,7 +309,7 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
                           data-id={node.id}
                           className={`rounded-2xl border-2 border-dashed px-4 py-3 text-sm text-slate-500 dark:text-slate-400 ${into ? 'border-orange-400' : 'border-slate-200 dark:border-slate-800'}`}
                         >
-                          Empty. Drag {noun}s here by their handle.
+                          {into && carrying > 1 ? `Drop ${carrying} ${noun}s here.` : `Empty. Drag ${noun}s here by their handle.`}
                         </div>
                       )}
                     </div>

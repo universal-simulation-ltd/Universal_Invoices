@@ -275,7 +275,7 @@ export default function CatalogueView() {
       <RecordList<Product>
         rows={sorted}
         tree={tree}
-        onMove={(id, target) => void moveInCatalogue(id, target)}
+        onMove={(ids, target) => void moveInCatalogue(ids, target)}
         onStep={(id, dir) => {
           const target = step(products, folders, id, dir);
           if (target) void moveInCatalogue(id, target);

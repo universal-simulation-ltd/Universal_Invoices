@@ -136,32 +136,13 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className={`space-y-4 ${pane === 'edit' ? '' : 'hidden lg:block'}`}>
           {/* From, first (James, 2026-10-30): who the document is from decides
-              everything under it. A choice only when there is one to make. */}
+              everything under it. Not a choice here (2026-10-31): a document
+              comes from the active company, picked in Your companies. */}
           <section className={card}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <h2 className={sectionTitle}>From</h2>
-                {companies.length > 1 ? (
-                  <select
-                    className={`${selectCls} mt-2 max-w-md`}
-                    value={company ? company.id : ''}
-                    aria-label="From which of your companies"
-                    onChange={(e) => {
-                      const c = companies.find((x) => x.id === e.target.value);
-                      if (c) set({ companyId: c.id, issuer: issuerSnapshot(c) });
-                    }}
-                  >
-                    {!company && <option value="">{doc.issuer.name || 'No company'}</option>}
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                        {c.example ? ' (example)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-200">{doc.issuer.name || 'No company'}</p>
-                )}
+                <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-200">{doc.issuer.name || 'No company'}</p>
               </div>
               {company && (
                 <button

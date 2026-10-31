@@ -1,7 +1,8 @@
 import { uid } from '../lib/convert';
 import { defaultNumbering, formatNumber, todayIso } from '../lib/numbering';
 import { KIND_NAMES, KIND_ORDER, type Company } from '../lib/types';
-import { useAppStore } from '../stores/appStore';
+import { ownCompanies, useAppStore } from '../stores/appStore';
+import { useActiveCompany } from './activeCompany';
 import ImagePicker from './ImagePicker';
 import { HUB_DETAILS, OrgRestore, useLiveOrg } from './OrgSync';
 import { saveSpreadsheet } from './exportSheet';
@@ -38,6 +39,8 @@ function blankCompany(): Company {
 export default function CompaniesView() {
   const { companies, documents, saveCompany, deleteMany, loadExample, companyPrompt, duplicateRow } = useAppStore();
   const { org, liveFor } = useLiveOrg();
+  const { active, setActive } = useActiveCompany();
+  const mine = ownCompanies(companies);
   return (
     <div className="space-y-4">
     <OrgRestore />
@@ -52,6 +55,25 @@ export default function CompaniesView() {
       onExport={(ids) => saveSpreadsheet('companies', ids)}
       onDuplicate={(c) => duplicateRow('companies', c.id)}
       live={(c) => liveFor(c).size > 0}
+      // The active company is the one new documents come from (activeCompany.ts).
+      aside={(c) =>
+        c.example ? null : c.id === active?.id ? (
+          <span
+            className="rounded-full bg-orange-600 px-3 py-1 text-xs font-semibold text-white"
+            title="New documents come from this company"
+          >
+            Active
+          </span>
+        ) : mine.length > 1 ? (
+          <button
+            type="button"
+            className="rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:border-orange-400 hover:text-orange-700 dark:border-slate-700 dark:text-slate-300 dark:hover:text-orange-400"
+            onClick={() => setActive(c.id)}
+          >
+            Make active
+          </button>
+        ) : null
+      }
       // "New …" with no company of your own lands here with the form open.
       startNew={companyPrompt !== null}
       deleteWarning={(c) => {

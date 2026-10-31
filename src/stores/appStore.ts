@@ -54,8 +54,8 @@ interface AppState {
   saveFolder: (f: Folder) => Promise<void>;
   /** Deletes the folder only: its products move out to where it was. */
   deleteFolder: (id: string) => Promise<void>;
-  /** Drag and drop in the catalogue: a product or folder to its new place. */
-  moveInCatalogue: (id: string, target: Target) => Promise<void>;
+  /** Drag and drop in the catalogue: a product or folder — or the ticked products — to a new place. */
+  moveInCatalogue: (ids: string | string[], target: Target) => Promise<void>;
   /** "Delete" and "Delete selected", for every list. */
   deleteMany: (table: Table, ids: string[]) => Promise<void>;
 
@@ -234,9 +234,9 @@ export const useAppStore = create<AppState>((set, get) => {
       await putMany({ products: write });
       await get().deleteMany('folders', [id]);
     },
-    moveInCatalogue: async (id, target) => {
+    moveInCatalogue: async (ids, target) => {
       const { products, folders } = get();
-      const change = move(products, folders, id, target);
+      const change = move(products, folders, ids, target);
       if (!change.products.length && !change.folders.length) return;
       const now = Date.now();
       const p = change.products.map((r) => ({ ...r, updatedAt: now }));

@@ -14,7 +14,10 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
 ## What it does
 
 - **Five kinds of document:** quote, estimate, pro forma, invoice, delivery note
-  (no prices, a "received by" box).
+  (no prices, a "received by" box). Documents has a sidebar of the five, with a
+  count each; pick one to see only those, and the New button makes that kind.
+  On All, **New document** opens the five with a line on what each is for.
+  Double-tap a kind to make Documents open on it.
 - **Numbering per company per kind**, from a pattern: `DEV-{YYYY}{MM}{DD}-{N:5}`
   → `DEV-20260727-00406`.
 - **Lines from your catalogue** (code, description, unit, price, a struck-through

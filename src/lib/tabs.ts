@@ -5,6 +5,7 @@
 // follows the account; Reset to defaults puts this order back.
 
 import type { Tab } from '../stores/appStore';
+import { KIND_ORDER, kindPlural, type BusinessDocKind } from './types';
 
 export const TABS: { value: Tab; label: string }[] = [
   { value: 'companies', label: 'Your companies' },
@@ -27,3 +28,15 @@ export function moveTab(order: Tab[], tab: Tab, to: number): Tab[] {
   rest.splice(Math.max(0, Math.min(to, rest.length)), 0, tab);
   return rest;
 }
+
+/**
+ * The Documents sidebar: All, then each kind. A double tap on one makes it
+ * what Documents opens on (the suite rule); Tune this app ▸ "Documents shows"
+ * is the same choice, and Reset to defaults clears it.
+ */
+export type DocumentsView = BusinessDocKind | 'all';
+export const DOCUMENTS_VIEWS: { value: DocumentsView; label: string }[] = [
+  { value: 'all', label: 'All' },
+  ...KIND_ORDER.map((k) => ({ value: k, label: kindPlural(k) })),
+];
+export const DOCUMENTS_VIEW_VALUES = DOCUMENTS_VIEWS.map((v) => v.value);

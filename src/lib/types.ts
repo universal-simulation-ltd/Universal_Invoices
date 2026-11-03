@@ -194,6 +194,21 @@ export const KIND_NAMES: Record<BusinessDocKind, string> = {
   'delivery-note': 'Delivery note',
 };
 
+/** The plural, for the Documents sidebar ("Pro formas", "Delivery notes"). */
+export const kindPlural = (kind: BusinessDocKind) => `${KIND_NAMES[kind]}s`;
+
+/**
+ * One line on what each kind is for, under its name in the New document menu
+ * — few people know an estimate from a pro forma.
+ */
+export const KIND_HINTS: Record<BusinessDocKind, string> = {
+  quote: 'A fixed price you are offering. Once accepted, it becomes the invoice.',
+  estimate: 'A rough price that may change once the work is done.',
+  proforma: 'An invoice in advance, to be paid before you deliver.',
+  invoice: 'A request for payment for work done or goods sent.',
+  'delivery-note': 'What was delivered, without prices, for the customer to sign.',
+};
+
 export const STATUS_NAMES: Record<DocStatus, string> = {
   draft: 'Draft',
   sent: 'Sent',

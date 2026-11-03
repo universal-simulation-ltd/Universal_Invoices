@@ -9,7 +9,7 @@ import DocumentEditor from './components/DocumentEditor';
 import DocumentsView from './components/DocumentsView';
 import TabBar from './components/TabBar';
 import TabOrderPreference from './components/TabOrderPreference';
-import { normaliseOrder, TAB_VALUES, TABS } from './lib/tabs';
+import { DOCUMENTS_VIEWS, normaliseOrder, TAB_VALUES, TABS } from './lib/tabs';
 import { OrgSync } from './components/OrgSync';
 import CloudBackup from './components/CloudBackup';
 import { cloudFooter } from './components/cloudText';
@@ -53,10 +53,12 @@ export default function App() {
         appPreferences={
           <>
             <DefaultViewSelect id="home-tab" label="Opens on" fallback="documents" views={TABS} />
+            {/* The Documents sidebar's twin of the double tap. */}
+            <DefaultViewSelect id="documents-kind" label="Documents shows" fallback="all" views={DOCUMENTS_VIEWS} />
             <TabOrderPreference order={tabOrder} onOrder={setTabOrder} />
           </>
         }
-        // The SDK resets its own (Opens on, theme, language); the tab order is ours.
+        // The SDK resets its own (Opens on, Documents shows, theme, language); the tab order is ours.
         onResetDefaults={() => setPref('tabOrder', null)}
         suiteSwitcherIconSrc={`${import.meta.env.BASE_URL}unisim-icon.png`}
         // Signed in, the bar says whose it is — "Bradley’s Invoices" — and Tune

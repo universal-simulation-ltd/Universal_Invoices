@@ -63,8 +63,9 @@ export default function App() {
         suiteSwitcherIconSrc={`${import.meta.env.BASE_URL}unisim-icon.png`}
         // Signed in, the bar says whose it is — "Bradley’s Invoices" — and Tune
         // this app gets the account area, where App name keeps that, goes back
-        // to "Universal Invoices" or takes a name they type (SDK 0.212.0).
-        personalTitle={(name) => (name ? `${name}’s Invoices` : 'My Invoices')}
+        // to "Universal Invoices" or takes a name they type (SDK 0.212.0). A
+        // name ending in s takes only the apostrophe: "James’ Invoices".
+        personalTitle={(name) => (name ? `${/s$/i.test(name.trim()) ? `${name}’` : `${name}’s`} Invoices` : 'My Invoices')}
       />
       <div className={`${CONTAINER} pt-4`}>
         <UpdateNotice />

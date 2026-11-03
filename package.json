@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-or-later",
-  "description": "Universal Invoices — quotes, pro formas, invoices and delivery notes as clean PDFs. Your companies, clients and catalogue stay in your browser: no account, no server.",
+  "description": "Universal Invoices — quotes, proformas, invoices and delivery notes as clean PDFs. Your companies, clients and catalogue stay in your browser: no account, no server.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -17,7 +17,7 @@
     "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
-    "@unisim/doc": "^0.13.0",
+    "@unisim/doc": "^0.15.0",
     "@unisim/media": "^0.8.1",
     "@unisim/sdk": "^0.213.0",
     "fflate": "^0.8.3",

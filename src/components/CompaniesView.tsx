@@ -1,6 +1,6 @@
 import { uid } from '../lib/convert';
 import { defaultNumbering, formatNumber, todayIso } from '../lib/numbering';
-import { KIND_NAMES, KIND_ORDER, type Company } from '../lib/types';
+import { KIND_NAMES, KIND_ORDER, type BankAccount, type Company } from '../lib/types';
 import { ownCompanies, useAppStore } from '../stores/appStore';
 import { useActiveCompany } from './activeCompany';
 import ImagePicker from './ImagePicker';
@@ -8,7 +8,7 @@ import FromBefore from './FromBefore';
 import { HUB_DETAILS, OrgRestore, useLiveOrg } from './OrgSync';
 import { saveSpreadsheet } from './exportSheet';
 import RecordList from './RecordList';
-import { DecimalInput, Field, LinesInput, SyncedChip, inputCls, labelCls, liveInputCls, sectionTitle, selectCls } from './ui';
+import { DecimalInput, Field, LinesInput, SyncedChip, btnGhost, inputCls, labelCls, liveInputCls, sectionTitle, selectCls } from './ui';
 
 const EXPORT_NOTE_FR = 'Exonération de TVA, art. 262 I du CGI';
 
@@ -150,9 +150,29 @@ export default function CompaniesView() {
                   {text(lf.has('email'), c.contact.email, (email) => set({ contact: { ...c.contact, email } }))}
                 </Field>
               </div>
-              <Field label="Bank details" hint="One line each: bank, BIC, IBAN.">
+              <Field label="Bank details" hint="One line each: bank, BIC, IBAN. The account documents use unless you pick another.">
                 <LinesInput rows={3} value={c.bank} onChange={(bank) => set({ bank })} live={lf.has('bank')} />
               </Field>
+              {/* More accounts, picked per document in its From section. */}
+              <div className="space-y-3">
+                {(c.moreBanks ?? []).map((b, i) => {
+                  const update = (patch: Partial<BankAccount>) => set({ moreBanks: (c.moreBanks ?? []).map((x, n) => (n === i ? { ...x, ...patch } : x)) });
+                  return (
+                    <div key={b.id} className="grid gap-2 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                      <div className="flex items-center gap-2">
+                        <input className={inputCls} value={b.label} placeholder="Name it — USD account, Barclays…" aria-label="Account name" onChange={(e) => update({ label: e.target.value })} />
+                        <button type="button" className={btnGhost} onClick={() => set({ moreBanks: (c.moreBanks ?? []).filter((_, n) => n !== i) })}>
+                          Remove
+                        </button>
+                      </div>
+                      <LinesInput rows={3} value={b.lines} onChange={(lines) => update({ lines })} placeholder={'Bank\nBIC : …\nIBAN : …'} />
+                    </div>
+                  );
+                })}
+                <button type="button" className={btnGhost} onClick={() => set({ moreBanks: [...(c.moreBanks ?? []), { id: uid(), label: '', lines: [] }] })}>
+                  + Another bank account
+                </button>
+              </div>
               <Field label="Legal footer" hint={lf.has('footer') ? 'Made from the hub’s registered name, address, numbers and contact details.' : 'On every page. The first line prints bold — usually the registered name; then SIRET / VAT / RCS.'}>
                 <LinesInput rows={4} value={c.footer} onChange={(footer) => set({ footer })} live={lf.has('footer')} />
               </Field>

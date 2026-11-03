@@ -34,7 +34,7 @@ export default defineConfig(({ mode }) => {
         manifest: {
           name: 'Universal Invoices',
           short_name: 'Invoices',
-          description: 'Quotes, pro formas, invoices and delivery notes as clean PDFs. No account, nothing uploaded.',
+          description: 'Quotes, proformas, invoices and delivery notes as clean PDFs. No account, nothing uploaded.',
           theme_color: '#0f172a',
           background_color: '#f8fafc',
           display: 'standalone',

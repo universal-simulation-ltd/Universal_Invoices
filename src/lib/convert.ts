@@ -145,7 +145,7 @@ export function newDocument(
 }
 
 /**
- * "Convert to invoice" (or delivery note, or pro forma): a NEW document with
+ * "Convert to invoice" (or delivery note, or proforma): a NEW document with
  * its own number, carrying the lines, client and terms across, and pointing
  * back at its source. The source is left as it was.
  */

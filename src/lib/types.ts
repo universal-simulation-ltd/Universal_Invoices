@@ -47,10 +47,17 @@ export interface CompanyDefaults {
   taxRate: number;
   paymentTerms: string;
   notes: string;
-  /** Quotes, estimates and pro formas: valid-until = date + this. */
+  /** Quotes, estimates and proformas: valid-until = date + this. */
   validityDays: number;
   /** Invoices: due date = date + this. */
   dueDays: number;
+}
+
+export interface BankAccount {
+  id: string;
+  /** What it is called in the list: "USD account", "Barclays". Not printed. */
+  label: string;
+  lines: string[];
 }
 
 /** A company you send documents from. You may have more than one. */
@@ -75,7 +82,13 @@ export interface Company {
   logo?: StoredImage;
   address: string[];
   contact: { name: string; phone: string; email: string };
+  /** The main bank account, one line each — from the hub when the company is synced. */
   bank: string[];
+  /**
+   * More accounts to choose from on a document (James, 2026-11-03: "let the
+   * user select between multiple banks"): a EUR and a USD account, say.
+   */
+  moreBanks?: BankAccount[];
   footer: string[];
   defaults: CompanyDefaults;
   numbering: Record<BusinessDocKind, Numbering>;
@@ -248,7 +261,7 @@ export interface InvoiceDoc {
 
 /**
  * The order of the journey, and so of every list of kinds: a rough estimate,
- * then the firm quote, then pro forma, invoice and delivery note (James,
+ * then the firm quote, then proforma, invoice and delivery note (James,
  * 2026-11-03: "put estimate before quote").
  */
 export const KIND_ORDER: BusinessDocKind[] = ['estimate', 'quote', 'proforma', 'invoice', 'delivery-note'];
@@ -257,17 +270,17 @@ export const KIND_ORDER: BusinessDocKind[] = ['estimate', 'quote', 'proforma', '
 export const KIND_NAMES: Record<BusinessDocKind, string> = {
   quote: 'Quote',
   estimate: 'Estimate',
-  proforma: 'Pro forma',
+  proforma: 'Proforma',
   invoice: 'Invoice',
   'delivery-note': 'Delivery note',
 };
 
-/** The plural, for the Documents sidebar ("Pro formas", "Delivery notes"). */
+/** The plural, for the Documents sidebar ("Proformas", "Delivery notes"). */
 export const kindPlural = (kind: BusinessDocKind) => `${KIND_NAMES[kind]}s`;
 
 /**
  * One line on what each kind is for, under its name in the New document menu
- * — few people know an estimate from a pro forma.
+ * — few people know an estimate from a proforma.
  */
 export const KIND_HINTS: Record<BusinessDocKind, string> = {
   quote: 'A fixed price you are offering. Once accepted, it becomes the invoice.',

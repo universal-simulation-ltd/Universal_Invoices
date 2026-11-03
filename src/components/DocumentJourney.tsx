@@ -17,7 +17,7 @@ export function confirmMakeFrom(doc: InvoiceDoc): boolean {
 }
 
 /**
- * The journey (lib/journey.ts): estimate → quote → pro forma → invoice →
+ * The journey (lib/journey.ts): estimate → quote → proforma → invoice →
  * delivery note, each made here, uploaded, done elsewhere or not needed. A
  * row of steps, then what can be done with the one picked — on a phone the
  * row scrolls sideways, cut off at the edge (the suite rule).

@@ -1,6 +1,6 @@
 # Universal Invoices
 
-**Quotes, pro formas, invoices and delivery notes as clean PDFs. No account, nothing uploaded.**
+**Quotes, proformas, invoices and delivery notes as clean PDFs. No account, nothing uploaded.**
 
 Set up your company once — logo, address, bank details, legal footer — keep a
 catalogue of what you sell and a list of who you sell to, and make a numbered
@@ -14,7 +14,7 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
 
 ## What it does
 
-- **Five kinds of document:** estimate, quote, pro forma, invoice, delivery note
+- **Five kinds of document:** estimate, quote, proforma, invoice, delivery note
   (no prices, a "received by" box). Documents has a sidebar of the five, with a
   count each; pick one to see only those, and the New button makes that kind.
   On All, **New document** opens the five with a line on what each is for.
@@ -49,6 +49,11 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   as you edit. It is **private** — it opens only for you, signed in — until
   you tick *Anyone with the link can open it*; *Stop sharing* deletes it, and
   so does deleting the document.
+- **Bank accounts:** a company has its main account and can add more; a
+  document's From section picks one, and its bank lines can be edited for
+  that document alone.
+- **Totals** always read Total excl. VAT, a row per VAT rate (VAT 0% when none
+  is charged), then Total due.
 - **Numbering per company per kind**, from a pattern: `DEV-{YYYY}{MM}{DD}-{N:5}`
   → `DEV-20260727-00406`.
 - **Lines from your catalogue** (code, description, unit, catalogue price, a

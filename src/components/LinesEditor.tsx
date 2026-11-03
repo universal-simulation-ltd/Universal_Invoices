@@ -181,22 +181,19 @@ export default function LinesEditor({
               </div>
             </>
           )}
-          {taxed && totals.taxes.length > 0 && (
-            <>
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <dt>Total excl. VAT</dt>
-                <dd>{money(totals.net)}</dd>
-              </div>
-              {totals.taxes.map((t) => (
-                <div key={t.rate} className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <dt>VAT {t.rate}%</dt>
-                  <dd>{money(t.tax)}</dd>
-                </div>
-              ))}
-            </>
-          )}
+          {/* As the PDF prints them (@unisim/doc 0.14.0): before tax, a row per rate — VAT 0% when none — then what is due. */}
+          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+            <dt>Total excl. VAT</dt>
+            <dd>{money(totals.net)}</dd>
+          </div>
+          {(totals.taxes.length ? totals.taxes : [{ rate: 0, tax: 0 }]).map((t) => (
+            <div key={t.rate} className="flex justify-between text-slate-600 dark:text-slate-400">
+              <dt>VAT {t.rate}%</dt>
+              <dd>{money(t.tax)}</dd>
+            </div>
+          ))}
           <div className="flex justify-between text-base font-semibold text-slate-900 dark:text-slate-100">
-            <dt>Total</dt>
+            <dt>Total due</dt>
             <dd>{money(totals.gross)}</dd>
           </div>
         </dl>

@@ -184,6 +184,9 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
   const d = draft;
   const dated = d.kind === 'invoice' ? 'dueDate' : d.kind === 'delivery-note' ? null : 'validUntil';
   const expired = dated === 'validUntil' && !!d.validUntil && d.validUntil <= d.date;
+  // Which of the company's accounts the document's bank lines are, if any.
+  const sameLines = (a: string[], b: string[]) => a.map((x) => x.trim()).filter(Boolean).join('\n') === b.map((x) => x.trim()).filter(Boolean).join('\n');
+  const bankChoice = !company ? 'edited' : sameLines(d.issuer.bank, company.bank) ? 'main' : (company.moreBanks?.find((b) => sameLines(b.lines, d.issuer.bank))?.id ?? 'edited');
   const section = (id: SectionId) => ({
     id,
     dirty: dirty.has(id),
@@ -324,6 +327,36 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
           >
             <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{d.issuer.name || 'No company'}</p>
             {d.issuer.address.length > 0 && <p className="text-sm text-slate-500 dark:text-slate-400">{d.issuer.address.filter(Boolean).join(', ')}</p>}
+            {/* The bank this document is paid into (James, 2026-11-03: "select
+                between multiple banks / make edits directly"): one of the
+                company's accounts, or edited here for this document alone. */}
+            {d.kind !== 'delivery-note' && (
+              <div className="mt-3 space-y-2">
+                {company && (company.moreBanks?.length ?? 0) > 0 && (
+                  <Field label="Bank account">
+                    <select
+                      className={selectCls}
+                      value={bankChoice}
+                      onChange={(e) => {
+                        const lines = e.target.value === 'main' ? company.bank : company.moreBanks!.find((b) => b.id === e.target.value)?.lines;
+                        if (lines) edit('from', { issuer: { ...d.issuer, bank: [...lines] } });
+                      }}
+                    >
+                      <option value="main">Main account{company.bank[0] ? ` — ${company.bank[0]}` : ''}</option>
+                      {company.moreBanks!.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.label || b.lines[0] || 'Unnamed account'}
+                        </option>
+                      ))}
+                      {bankChoice === 'edited' && <option value="edited">Edited for this document</option>}
+                    </select>
+                  </Field>
+                )}
+                <Field label="Bank details on this document" hint="Changes here are for this document only — the company keeps its own.">
+                  <LinesInput rows={3} value={d.issuer.bank} onChange={(bank) => edit('from', { issuer: { ...d.issuer, bank } })} />
+                </Field>
+              </div>
+            )}
           </Section>
 
           <Section {...section('document')} title="Document" summary={[d.number, d.subject].filter(Boolean).join(' · ')}>

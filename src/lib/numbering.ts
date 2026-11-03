@@ -1,4 +1,5 @@
 // Document numbers. A pattern per company per kind, with its own counter:
+// "INV-{YYYY}{MM}{DD}-{N}" → INV-20261103-10 (the default), or
 // "DEV-{YYYY}{MM}{DD}-{N:5}" → DEV-20260727-00406 (the Sellsy shape).
 
 import type { BusinessDocKind, BusinessDocLanguage, Numbering } from './types';
@@ -24,7 +25,9 @@ export function formatNumber(pattern: string, isoDate: string, n: number): strin
 /**
  * Starting patterns. French ones use the French document names' initials
  * (DEVis, PROforma, FACture, Bon de Livraison) — what a French accountant
- * expects to see; English ones the English names'.
+ * expects to see; English ones the English names'. The counter is unpadded
+ * and starts at 10 (James, 2026-11-03: "INV-20261103-10 … starting at 10 makes
+ * it look like other documents have been done"); past 99 it just grows.
  */
 export function defaultNumbering(language: BusinessDocLanguage): Record<BusinessDocKind, Numbering> {
   const p = language === 'fr'
@@ -32,7 +35,7 @@ export function defaultNumbering(language: BusinessDocLanguage): Record<Business
     : { quote: 'QUO', estimate: 'EST', proforma: 'PRO', invoice: 'INV', 'delivery-note': 'DN' };
   const out = {} as Record<BusinessDocKind, Numbering>;
   for (const kind of Object.keys(p) as BusinessDocKind[]) {
-    out[kind] = { pattern: `${p[kind]}-{YYYY}{MM}{DD}-{N:5}`, next: 1 };
+    out[kind] = { pattern: `${p[kind]}-{YYYY}{MM}{DD}-{N}`, next: 10 };
   }
   return out;
 }

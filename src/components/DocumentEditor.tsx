@@ -41,7 +41,14 @@ const SECTION_TITLES: Record<SectionId, string> = { from: 'From', document: 'Doc
 /** `doc` with `section`'s fields taken from `from`. Keys set to undefined are kept, so clearing a date saves. */
 function withFields(doc: InvoiceDoc, from: InvoiceDoc, sections: Iterable<SectionId>): InvoiceDoc {
   const out = { ...doc } as Record<string, unknown>;
-  for (const s of sections) for (const k of FIELDS[s]) out[k] = from[k];
+  for (const s of sections) {
+    for (const k of FIELDS[s]) out[k] = from[k];
+    // The bank lines print with the terms, so they are edited — and saved —
+    // in Terms and notes; the rest of `issuer` is From's (James, 2026-11-03).
+    const issuer = out.issuer as InvoiceDoc['issuer'];
+    if (s === 'from') out.issuer = { ...from.issuer, bank: issuer.bank };
+    if (s === 'terms') out.issuer = { ...issuer, bank: from.issuer.bank };
+  }
   return out as unknown as InvoiceDoc;
 }
 
@@ -342,7 +349,11 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                   type="button"
                   className={btnGhost}
                   title="This document keeps the company details it was made with. Take the current ones instead."
-                  onClick={() => edit('from', { issuer: issuerSnapshot(company) })}
+                  onClick={() => {
+                    // Its bank too, which is Terms and notes' to save.
+                    edit('from', { issuer: issuerSnapshot(company) });
+                    edit('terms', {});
+                  }}
                 >
                   Use current company details
                 </button>
@@ -351,36 +362,6 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
           >
             <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{d.issuer.name || 'No company'}</p>
             {d.issuer.address.length > 0 && <p className="text-sm text-slate-500 dark:text-slate-400">{d.issuer.address.filter(Boolean).join(', ')}</p>}
-            {/* The bank this document is paid into (James, 2026-11-03: "select
-                between multiple banks / make edits directly"): one of the
-                company's accounts, or edited here for this document alone. */}
-            {d.kind !== 'delivery-note' && (
-              <div className="mt-3 space-y-2">
-                {company && (company.moreBanks?.length ?? 0) > 0 && (
-                  <Field label="Bank account">
-                    <select
-                      className={selectCls}
-                      value={bankChoice}
-                      onChange={(e) => {
-                        const lines = e.target.value === 'main' ? company.bank : company.moreBanks!.find((b) => b.id === e.target.value)?.lines;
-                        if (lines) edit('from', { issuer: { ...d.issuer, bank: [...lines] } });
-                      }}
-                    >
-                      <option value="main">Main account{company.bank[0] ? ` — ${company.bank[0]}` : ''}</option>
-                      {company.moreBanks!.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.label || b.lines[0] || 'Unnamed account'}
-                        </option>
-                      ))}
-                      {bankChoice === 'edited' && <option value="edited">Edited for this document</option>}
-                    </select>
-                  </Field>
-                )}
-                <Field label="Bank details on this document" hint="Changes here are for this document only — the company keeps its own.">
-                  <LinesInput rows={3} value={d.issuer.bank} onChange={(bank) => edit('from', { issuer: { ...d.issuer, bank } })} />
-                </Field>
-              </div>
-            )}
           </Section>
 
           <Section {...section('document')} title="Document" summary={[d.number, d.subject].filter(Boolean).join(' · ')}>
@@ -508,6 +489,37 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                 <Field label="Payment terms" className="sm:col-span-2">
                   <input className={inputCls} value={d.paymentTerms} onChange={(e) => edit('terms', { paymentTerms: e.target.value })} />
                 </Field>
+              )}
+              {/* The bank this document is paid into (James, 2026-11-03: "select
+                  between multiple banks / make edits directly"): one of the
+                  company's accounts, or edited here for this document alone.
+                  Under the payment terms, as on the PDF — not up in From. */}
+              {d.kind !== 'delivery-note' && (
+                <div className="space-y-2 sm:col-span-2">
+                  {company && (company.moreBanks?.length ?? 0) > 0 && (
+                    <Field label="Bank account">
+                      <select
+                        className={selectCls}
+                        value={bankChoice}
+                        onChange={(e) => {
+                          const lines = e.target.value === 'main' ? company.bank : company.moreBanks!.find((b) => b.id === e.target.value)?.lines;
+                          if (lines) edit('terms', { issuer: { ...d.issuer, bank: [...lines] } });
+                        }}
+                      >
+                        <option value="main">Main account{company.bank[0] ? ` — ${company.bank[0]}` : ''}</option>
+                        {company.moreBanks!.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.label || b.lines[0] || 'Unnamed account'}
+                          </option>
+                        ))}
+                        {bankChoice === 'edited' && <option value="edited">Edited for this document</option>}
+                      </select>
+                    </Field>
+                  )}
+                  <Field label="Bank details on this document" hint="Changes here are for this document only — the company keeps its own.">
+                    <LinesInput rows={3} value={d.issuer.bank} onChange={(bank) => edit('terms', { issuer: { ...d.issuer, bank } })} />
+                  </Field>
+                </div>
               )}
               <Field label="Notes" className="sm:col-span-2">
                 <textarea className={`${inputCls} resize-y`} rows={3} value={d.notes} onChange={(e) => edit('terms', { notes: e.target.value })} />

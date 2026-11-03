@@ -103,3 +103,31 @@ export function relinkAfterDelete(documents: InvoiceDoc[], ids: string[]): Invoi
   }
   return [...next.values()].filter((d) => !gone.has(d.id));
 }
+
+/**
+ * A list's rows put together by journey (James, 2026-11-03: "in all mode group
+ * documents from the same journey"). Each journey comes once, where its newest
+ * row would be — `rows` keeps its order — with its documents in journey order,
+ * estimate to delivery note. `documents` is everything, so a journey whose
+ * middle is filtered out of `rows` still holds together.
+ */
+export function groupByJourney(rows: InvoiceDoc[], documents: InvoiceDoc[]): InvoiceDoc[][] {
+  const byId = new Map(documents.map((d) => [d.id, d]));
+  const rootOf = (d: InvoiceDoc) => {
+    let root = d;
+    const seen = new Set([d.id]);
+    for (let up = root.sourceId && byId.get(root.sourceId); up && !seen.has(up.id); up = up.sourceId && byId.get(up.sourceId)) {
+      seen.add(up.id);
+      root = up;
+    }
+    return root.id;
+  };
+  const groups = new Map<string, InvoiceDoc[]>();
+  for (const d of rows) {
+    const key = rootOf(d);
+    const group = groups.get(key);
+    if (group) group.push(d);
+    else groups.set(key, [d]);
+  }
+  return [...groups.values()].map((g) => g.sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || a.createdAt - b.createdAt));
+}

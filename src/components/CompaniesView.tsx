@@ -236,7 +236,7 @@ export default function CompaniesView() {
             <div>
               <h3 className={sectionTitle}>Numbering</h3>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                {'{YYYY} {MM} {DD}'} are the document’s date; {'{N:5}'} is the counter, padded to five digits. “Next” is the number the next one gets.
+                {'{YYYY} {MM} {DD}'} are the document’s date; {'{N}'} is the counter ({'{N:5}'} pads it to five digits). “Next” is the number the next one gets.
               </p>
               <div className="mt-3 space-y-2">
                 {KIND_ORDER.map((k) => {

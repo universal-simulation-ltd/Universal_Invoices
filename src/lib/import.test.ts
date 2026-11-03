@@ -3,7 +3,7 @@ import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { computeTotals } from '@unisim/doc';
 import { clientSnapshot, companyForImport, convertDocument, importedDocument, newDocument, withCataloguePictures } from './convert';
 import { exampleData } from './example';
-import { journeyOf, nextStep, relinkAfterDelete, sourceFor, startOf, stepsOf } from './journey';
+import { groupByJourney, journeyOf, nextStep, relinkAfterDelete, sourceFor, startOf, stepsOf } from './journey';
 import { changedBy, upgrade } from './legacy';
 import { counterAfter } from './numbering';
 import { renderPdf } from './pdf';
@@ -127,6 +127,13 @@ describe('journey', () => {
     const steps = stepsOf(journeyOf(lone, [lone]));
     expect(steps.map((s) => s.state)).toEqual(['todo', 'made', 'skipped', 'todo', 'done']);
     expect(startOf(steps)).toBe(1);
+  });
+
+  it('groups a list by journey, where its newest row is', () => {
+    const lone = { ...newDocument('invoice', company, '2026-10-15').doc, createdAt: 4 };
+    // Newest first, as Documents lists them; the quote is filtered out.
+    const groups = groupByJourney([inv, lone, est], [...docs, lone]);
+    expect(groups.map((g) => g.map((d) => d.id))).toEqual([[est.id, inv.id], [lone.id]]);
   });
 
   it('stays whole when a document in it is deleted', () => {

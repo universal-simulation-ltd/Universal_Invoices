@@ -18,6 +18,7 @@ describe('numbering', () => {
     const n = defaultNumbering('fr');
     expect(n.invoice.pattern.startsWith('FAC-')).toBe(true);
     expect(n['delivery-note'].pattern.startsWith('BL-')).toBe(true);
+    expect(formatNumber(n.invoice.pattern, '2026-11-03', n.invoice.next)).toBe('FAC-20261103-10');
   });
   it('adds days across a month end without a time-zone slip', () => {
     expect(addDays('2026-07-27', 180)).toBe('2027-01-23');
@@ -56,7 +57,7 @@ describe('documents', () => {
   it('a new document takes the next number and advances the counter', () => {
     const before = company.numbering.invoice.next;
     const r = newDocument('invoice', company, '2026-10-29', client);
-    expect(r.doc.number).toBe(`INV-20261029-${String(before).padStart(5, '0')}`);
+    expect(r.doc.number).toBe(`INV-20261029-${before}`);
     expect(r.company.numbering.invoice.next).toBe(before + 1);
     expect(r.doc.dueDate).toBe('2026-11-28');
     expect(r.doc.validUntil).toBeUndefined();

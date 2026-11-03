@@ -20,9 +20,12 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   On All, **New document** opens the five with a line on what each is for.
   Double-tap a kind to make Documents open on it.
 - **The journey:** above every document, its five steps from estimate to
-  delivery note. A step is made here (*Make the invoice here*), or — when it
-  was done somewhere else — uploaded (a PDF or a picture, kept with it),
-  ticked *Done elsewhere*, or marked *Not needed*.
+  delivery note. A step is made here (*Make the invoice here*, which asks
+  whether to base it on the step before — lines, prices, terms — or start
+  fresh with only the client), or — when it was done somewhere else —
+  uploaded (a PDF or a picture, kept with it), ticked *Done elsewhere*, or
+  marked *Not needed*. There are no statuses to keep up: this is not
+  accounting software.
 - **Import PDF:** a quote, estimate, invoice or delivery note made somewhere
   else is read into a document you can edit — number, dates, client, lines,
   units, prices, notes, terms and bank details — with the PDF kept beside it.
@@ -54,7 +57,8 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
 - **More than one company** if you trade under more than one name. One is
   **active** — new documents come from it, so there is no company to pick on
   each one; switch it in Your companies.
-- **Duplicate** a company, client or catalogue item to start a new one from it.
+- **Duplicate** a company, client or catalogue item to start a new one from it
+  — or tick documents in the list and Duplicate them: a copy with a new number.
 - **A catalogue that fills fast:** add several products at once in rows (a new
   row appears as you type in the last), drop a picture on a product to set it,
   or drop many pictures on the Catalogue tab to make one product each, coded by
@@ -87,7 +91,7 @@ this app; that choice and your Call me name are kept on your Universal ID. If
 your Universal ID belongs to a company, that company appears in Your companies
 as the default "From", and its Business details from app.unisim.co.uk
 (address, VAT and registration numbers, bank details, logo, footer) are read
-into this browser and kept in step with the hub — those fields show a Live chip
+into this browser and kept in step with the hub — those fields show a Synced chip
 and are changed on the hub, not here. Delete it and it stays gone until you
 choose "Add it back". Documents you have already made keep the details they
 were made with. A spreadsheet export is a file on your device only.

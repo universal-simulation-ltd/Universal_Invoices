@@ -178,6 +178,25 @@ export function convertDocument(
   };
 }
 
+/**
+ * The next step, started fresh (James, 2026-11-03: "ask the user if they want
+ * to start fresh or base the information on the previous step"): a new,
+ * numbered document from the company's current details and defaults, with
+ * only the client carried over — and still linked into the journey.
+ */
+export function freshDocument(source: InvoiceDoc, kind: BusinessDocKind, company: Company, date: string): { doc: InvoiceDoc; company: Company } {
+  const out = newDocument(kind, company, date);
+  return {
+    company: out.company,
+    doc: {
+      ...out.doc,
+      clientId: source.clientId,
+      client: { ...source.client, address: [...source.client.address], ...(source.client.contact ? { contact: { ...source.client.contact } } : {}) },
+      sourceId: source.id,
+    },
+  };
+}
+
 /** A copy with a fresh number — "Duplicate". Status goes back to draft. */
 export function duplicateDocument(source: InvoiceDoc, company: Company, date: string): { doc: InvoiceDoc; company: Company } {
   const out = convertDocument(source, source.kind, company, date);

@@ -1,17 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { saveBlob } from '@unisim/media/save';
 import { computeTotals, formatMoney } from '@unisim/doc';
 import { clientFromSnapshot, clientSnapshot, issuerSnapshot, pdfFileName } from '../lib/convert';
 import { renderPdf } from '../lib/pdf';
-import { KIND_NAMES, KIND_ORDER, STATUS_NAMES, type DocStatus, type InvoiceDoc } from '../lib/types';
+import { KIND_NAMES, type InvoiceDoc } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
 import { openAttachment } from './attachments';
-import DocumentJourney, { confirmMakeFrom } from './DocumentJourney';
+import DocumentJourney from './DocumentJourney';
 import LinesEditor from './LinesEditor';
 import ShareLink from './ShareLink';
 import { ExampleChip, Field, LinesInput, btnDanger, btnGhost, btnPrimary, card, confirmAction, inputCls, sectionTitle, selectBase, selectCls } from './ui';
-
-const STATUSES: DocStatus[] = ['draft', 'sent', 'accepted', 'declined', 'paid', 'cancelled'];
 
 /**
  * One document: the form on the left, the real PDF on the right. Full width
@@ -20,7 +18,7 @@ const STATUSES: DocStatus[] = ['draft', 'sent', 'accepted', 'declined', 'paid', 
  * room the preview needs.
  */
 export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
-  const { companies, clients, products, folders, updateDocument, deleteMany, convert, duplicate, open, saveClient } = useAppStore();
+  const { companies, clients, products, folders, updateDocument, deleteMany, open, saveClient } = useAppStore();
   const company = companies.find((c) => c.id === doc.companyId);
   const [pane, setPane] = useState<'edit' | 'preview'>('edit');
   const set = (patch: Partial<InvoiceDoc>) => updateDocument({ ...doc, ...patch });
@@ -50,11 +48,9 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
   const [shareSignal, setShareSignal] = useState(0);
   const download = async () => {
     await saveBlob(renderPdf(doc).blob, pdfFileName(doc));
-    if (doc.status === 'draft') set({ status: 'sent' });
     setShareSignal((n) => n + 1);
   };
 
-  const convertTargets = useMemo(() => KIND_ORDER.filter((k) => k !== doc.kind), [doc.kind]);
   const dated = doc.kind === 'invoice' ? 'dueDate' : doc.kind === 'delivery-note' ? null : 'validUntil';
 
   return (
@@ -71,37 +67,12 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
           </div>
           <div className="truncate font-semibold text-slate-900 dark:text-slate-100">{doc.number}</div>
         </div>
-        <select className={selectBase} value={doc.status} onChange={(e) => set({ status: e.target.value as DocStatus })} aria-label="Status">
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {STATUS_NAMES[s]}
-            </option>
-          ))}
-        </select>
-        <select
-          className={selectBase}
-          value=""
-          aria-label="Make another document from this one"
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v === 'duplicate') void duplicate(doc.id);
-            else if (v && confirmMakeFrom(doc)) void convert(doc.id, v as InvoiceDoc['kind']);
-          }}
-        >
-          <option value="">Make…</option>
-          <option value="duplicate">A copy of this {KIND_NAMES[doc.kind].toLowerCase()}</option>
-          {convertTargets.map((k) => (
-            <option key={k} value={k}>
-              {KIND_NAMES[k]} from this
-            </option>
-          ))}
-        </select>
         <button
           type="button"
           className={btnDanger}
           onClick={() => {
-            const warn = doc.kind === 'invoice' && doc.status !== 'draft'
-              ? `Delete invoice ${doc.number}? It has been issued — Invoice numbers are expected to run without gaps — consider marking it Cancelled instead.`
+            const warn = doc.kind === 'invoice'
+              ? `Delete invoice ${doc.number}? This cannot be undone — and if it was sent, invoice numbers are expected to run without gaps.`
               : `Delete ${KIND_NAMES[doc.kind].toLowerCase()} ${doc.number}? This cannot be undone.`;
             if (confirmAction(warn)) void deleteMany('documents', [doc.id]);
           }}

@@ -204,15 +204,16 @@ export function ExampleChip() {
 export const exampleBorder = 'border-dashed border-orange-300 dark:border-orange-800';
 
 /**
- * Live: this follows your Universal ID company and updates itself (James,
+ * Synced: this follows your Universal ID company and updates itself (James,
  * 2026-10-30: "highlight the box to show it's dynamic"). Sky, not orange — the
  * app's orange already means "act here", and this means "set elsewhere".
+ * Called "Live" until 2026-11-03, when James found it read like "Active".
  */
-export function LiveChip() {
+export function SyncedChip() {
   return (
     <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-sky-300 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-sky-800 dark:border-sky-800 dark:bg-sky-950/50 dark:text-sky-300">
       <span className="h-1.5 w-1.5 rounded-full bg-sky-500" aria-hidden />
-      Live
+      Synced
     </span>
   );
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Target } from '../lib/arrange';
 import { DragHandle, DropLine, useArrangeDrag } from './arrange';
 import { SelectCheckbox, SelectionBar, useSelection } from './selection';
-import { EmptyState, ExampleChip, LiveChip, btnDanger, btnGhost, btnPrimary, card, confirmAction, exampleBorder, liveBorder } from './ui';
+import { EmptyState, ExampleChip, SyncedChip, btnDanger, btnGhost, btnPrimary, card, confirmAction, exampleBorder, liveBorder } from './ui';
 
 /**
  * The shape the Clients, Catalogue and Companies tabs share: a list, one row
@@ -61,7 +61,7 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
   onStarted?: () => void;
   /** "Duplicate" in the editor: saves a copy and opens it, so it can be renamed. */
   onDuplicate?: (row: T) => Promise<T | undefined>;
-  /** A row that follows something elsewhere (the live Universal ID company): a Live chip and a sky border. */
+  /** A row that follows something elsewhere (the live Universal ID company): a Synced chip and a sky border. */
   live?: (row: T) => boolean;
   /** "Export to spreadsheet" for the ticked rows. */
   onExport?: (ids: string[]) => void;
@@ -220,7 +220,7 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
           {row.example || live?.(row) ? (
             <div className="flex items-start gap-3">
               <div className="min-w-0 flex-1">{summary(row)}</div>
-              {row.example ? <ExampleChip /> : <LiveChip />}
+              {row.example ? <ExampleChip /> : <SyncedChip />}
             </div>
           ) : (
             summary(row)

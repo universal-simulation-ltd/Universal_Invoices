@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { move, type Target } from '../lib/arrange';
 import { makeBackup, mergeDataset, parseBackup } from '../lib/backup';
-import { companyForImport, companyFromRead, convertDocument, duplicateDocument, importedDocument, newDocument, uid, withCataloguePictures } from '../lib/convert';
+import { companyForImport, companyFromRead, convertDocument, duplicateDocument, freshDocument, importedDocument, newDocument, uid, withCataloguePictures } from '../lib/convert';
 import { relinkAfterDelete } from '../lib/journey';
 import { changedBy, upgrade } from '../lib/legacy';
 import { shareHooks } from '../lib/shareHooks';
@@ -93,7 +93,8 @@ interface AppState {
   createDocument: (kind: BusinessDocKind, companyId?: string) => Promise<void>;
   /** Immediate in memory; written to IndexedDB a moment later (typing). */
   updateDocument: (doc: InvoiceDoc) => void;
-  convert: (id: string, kind: BusinessDocKind) => Promise<void>;
+  /** The next step of a journey: based on `id` (its lines, terms, client), or — `fresh` — only its client. */
+  convert: (id: string, kind: BusinessDocKind, fresh?: boolean) => Promise<void>;
   /**
    * "Import PDF": what readPdf found, as a new document from the company it
    * names (or the active one; or, with none yet, a company made from it).
@@ -409,11 +410,11 @@ export const useAppStore = create<AppState>((set, get) => {
         }, 400),
       );
     },
-    convert: async (id, kind) => {
+    convert: async (id, kind, fresh = false) => {
       const source = get().documents.find((d) => d.id === id);
       const company = source && get().companies.find((c) => c.id === source.companyId);
       if (!source || !company) return;
-      const { doc, company: next } = convertDocument(source, kind, company, todayIso());
+      const { doc, company: next } = (fresh ? freshDocument : convertDocument)(source, kind, company, todayIso());
       await added(doc, next);
     },
     importRead: async (read, file, fallbackKind, activeId) => {

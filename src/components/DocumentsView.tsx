@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useDefaultView, useScrollHint } from '@unisim/sdk';
 import { computeTotals, formatDate, formatMoney, wantsDecimals } from '@unisim/doc';
 import { DOCUMENTS_VIEWS, DOCUMENTS_VIEW_VALUES, type DocumentsView as DocumentsViewKind } from '../lib/tabs';
-import { KIND_NAMES, STATUS_NAMES, kindPlural, type DocStatus, type InvoiceDoc } from '../lib/types';
+import { KIND_NAMES, kindPlural, type InvoiceDoc } from '../lib/types';
 import { ownCompanies, useAppStore } from '../stores/appStore';
 import { useActiveCompany } from './activeCompany';
 import ImportPdfButton from './ImportPdfButton';
@@ -11,14 +11,6 @@ import { saveSpreadsheet } from './exportSheet';
 import { SelectCheckbox, SelectionBar, useSelection } from './selection';
 import { EmptyState, ExampleChip, btnGhost, exampleBorder, inputCls } from './ui';
 
-const STATUS_TONE: Record<DocStatus, string> = {
-  draft: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-  sent: 'bg-sky-50 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
-  accepted: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
-  declined: 'bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-300',
-  paid: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
-  cancelled: 'bg-slate-100 text-slate-500 line-through dark:bg-slate-800 dark:text-slate-500',
-};
 
 function total(doc: InvoiceDoc): string {
   if (doc.kind === 'delivery-note') return '—';
@@ -27,7 +19,7 @@ function total(doc: InvoiceDoc): string {
 }
 
 export default function DocumentsView() {
-  const { companies, documents, createDocument, open, loadExample, deleteMany, setTab } = useAppStore();
+  const { companies, documents, createDocument, open, loadExample, deleteMany, duplicate, setTab } = useAppStore();
   // The sidebar's kind. A double tap makes it what Documents opens on.
   const shows = useDefaultView<DocumentsViewKind>('documents-kind', 'all', { views: DOCUMENTS_VIEW_VALUES });
   const [kind, setKind] = useState<DocumentsViewKind>(shows.defaultView);
@@ -136,7 +128,17 @@ export default function DocumentsView() {
           <input className={`${inputCls} order-last w-full sm:order-none sm:w-auto sm:max-w-xs sm:flex-1`} placeholder="Search number, client, subject" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search" />
           {from}
           <div className="ml-auto">
-            <SelectionBar sel={sel} total={rows.length} noun="document" onDelete={(ids) => deleteMany('documents', ids)} onExport={(ids) => saveSpreadsheet('documents', ids)} />
+            <SelectionBar
+              sel={sel}
+              total={rows.length}
+              noun="document"
+              onDelete={(ids) => deleteMany('documents', ids)}
+              onExport={(ids) => saveSpreadsheet('documents', ids)}
+              // A copy with a new number — what "Make… → A copy" was in the editor (James, 2026-11-03).
+              onDuplicate={async (ids) => {
+                for (const id of ids) await duplicate(id);
+              }}
+            />
           </div>
         </div>
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -149,12 +151,12 @@ export default function DocumentsView() {
                 <button
                   type="button"
                   onClick={() => open(d.id)}
-                  className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-3 text-left hover:bg-orange-50/60 sm:grid-cols-[8rem_minmax(0,1fr)_6rem_7rem_auto] dark:hover:bg-slate-800/60"
+                  className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-3 text-left hover:bg-orange-50/60 sm:grid-cols-[8rem_minmax(0,1fr)_6rem_7rem] dark:hover:bg-slate-800/60"
                 >
                   <span className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-400">{KIND_NAMES[d.kind]}</span>
-                  {/* On a phone: kind and status, then the client across, then date and total. */}
-                  <span className={`justify-self-end rounded-full px-2 py-0.5 text-xs font-medium sm:order-last ${STATUS_TONE[d.status]}`}>{STATUS_NAMES[d.status]}</span>
-                  <span className="col-span-2 min-w-0 sm:col-span-1">
+                  {/* On a phone: kind and date, then the client across, then the total. */}
+                  <span className="justify-self-end text-sm text-slate-600 sm:order-3 sm:justify-self-auto dark:text-slate-400">{formatDate(d.date)}</span>
+                  <span className="col-span-2 min-w-0 sm:order-2 sm:col-span-1">
                     <span className="flex items-center gap-2">
                       <span className="truncate font-medium text-slate-900 dark:text-slate-100">{d.client.name || 'No client yet'}</span>
                       {d.example && <ExampleChip />}
@@ -164,8 +166,7 @@ export default function DocumentsView() {
                       {d.subject ? ` · ${d.subject}` : ''}
                     </span>
                   </span>
-                  <span className="text-sm text-slate-600 dark:text-slate-400">{formatDate(d.date)}</span>
-                  <span className="tabular text-right text-sm font-semibold text-slate-900 dark:text-slate-100">{total(d)}</span>
+                  <span className="tabular col-span-2 text-right text-sm font-semibold text-slate-900 sm:order-4 sm:col-span-1 dark:text-slate-100">{total(d)}</span>
                 </button>
               </li>
             ))}

@@ -8,7 +8,7 @@ import FromBefore from './FromBefore';
 import { HUB_DETAILS, OrgRestore, useLiveOrg } from './OrgSync';
 import { saveSpreadsheet } from './exportSheet';
 import RecordList from './RecordList';
-import { DecimalInput, Field, LinesInput, LiveChip, inputCls, labelCls, liveInputCls, sectionTitle, selectCls } from './ui';
+import { DecimalInput, Field, LinesInput, SyncedChip, inputCls, labelCls, liveInputCls, sectionTitle, selectCls } from './ui';
 
 const EXPORT_NOTE_FR = 'Exonération de TVA, art. 262 I du CGI';
 
@@ -113,7 +113,7 @@ export default function CompaniesView() {
           <div className="space-y-6">
             {lf.size > 0 && org && (
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-sky-200 bg-sky-50/70 px-3 py-2 text-sm text-slate-700 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-slate-300">
-                <LiveChip />
+                <SyncedChip />
                 <span className="min-w-0 flex-1">
                   The tinted boxes follow <span className="font-semibold">{org.name}</span> on your Universal ID and update by themselves. Want a version that stays put? Duplicate it.
                 </span>

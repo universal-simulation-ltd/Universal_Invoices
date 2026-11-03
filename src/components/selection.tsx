@@ -53,6 +53,7 @@ export function SelectionBar({
   noun,
   onDelete,
   onExport,
+  onDuplicate,
 }: {
   sel: Selection;
   total: number;
@@ -60,6 +61,8 @@ export function SelectionBar({
   onDelete: (ids: string[]) => void | Promise<void>;
   /** "Export to spreadsheet" for the ticked rows (and what goes with them). */
   onExport?: (ids: string[]) => void;
+  /** "Duplicate" for the ticked rows: a copy of each. */
+  onDuplicate?: (ids: string[]) => void | Promise<void>;
 }) {
   if (total === 0) return null;
   const n = sel.selected.size;
@@ -82,6 +85,18 @@ export function SelectionBar({
           >
             Delete selected
           </button>
+          {onDuplicate && (
+            <button
+              type="button"
+              className={`${btnGhost} py-1.5`}
+              onClick={async () => {
+                await onDuplicate([...sel.selected]);
+                sel.clear();
+              }}
+            >
+              Duplicate
+            </button>
+          )}
           {onExport && (
             <button type="button" className={`${btnGhost} py-1.5`} onClick={() => onExport([...sel.selected])}>
               Export to spreadsheet

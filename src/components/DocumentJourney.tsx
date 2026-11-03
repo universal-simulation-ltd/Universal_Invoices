@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useScrollHint } from '@unisim/sdk';
 import { journeyOf, nextStep, sourceFor, startOf, stepsOf, type Step } from '../lib/journey';
-import { KIND_NAMES, KIND_ORDER, STATUS_NAMES, type BusinessDocKind, type InvoiceDoc } from '../lib/types';
+import { KIND_NAMES, KIND_ORDER, type BusinessDocKind, type InvoiceDoc } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
 import { fileSize, openAttachment, readAttachment } from './attachments';
 import { btnGhost, btnPrimary, confirmAction, sectionTitle } from './ui';
 
 const STATE_TEXT = { uploaded: 'Uploaded', done: 'Done elsewhere', skipped: 'Not needed', todo: 'To do' } as const;
 
-/** "Make…" from an imported document nobody has checked yet asks first. */
+/** Making the next step from an imported document nobody has checked yet asks first. */
 export function confirmMakeFrom(doc: InvoiceDoc): boolean {
   if (!doc.imported || doc.imported.checked) return true;
   return confirmAction(
@@ -44,9 +44,12 @@ export default function DocumentJourney({ doc }: { doc: InvoiceDoc }) {
   const done = shown.filter((s) => s.state !== 'todo').length;
   const uploaded = step.state === 'uploaded' && step.mark?.state === 'uploaded' ? step.mark.file : undefined;
 
-  const make = (kind: BusinessDocKind) => {
-    const source = sourceFor(steps, kind, doc);
-    if (confirmMakeFrom(source)) void convert(source.id, kind);
+  // "Make the invoice here" asks first: based on the step before, or fresh.
+  const [asking, setAsking] = useState(false);
+  const source = sourceFor(steps, step.kind, doc);
+  const make = (fresh: boolean) => {
+    setAsking(false);
+    if (fresh || confirmMakeFrom(source)) void convert(source.id, step.kind, fresh);
   };
 
   return (
@@ -81,6 +84,7 @@ export default function DocumentJourney({ doc }: { doc: InvoiceDoc }) {
               onClick={() => {
                 setPicked(s.kind);
                 setError(null);
+                setAsking(false);
               }}
               className={`flex min-w-[7.5rem] items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${
                 picked === s.kind
@@ -92,7 +96,7 @@ export default function DocumentJourney({ doc }: { doc: InvoiceDoc }) {
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">{KIND_NAMES[s.kind]}</span>
                 <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
-                  {s.state === 'made' ? (s.kind === doc.kind ? 'This one' : STATUS_NAMES[s.docs[s.docs.length - 1].status]) : STATE_TEXT[s.state]}
+                  {s.state === 'made' ? (s.kind === doc.kind ? 'This one' : s.docs[s.docs.length - 1].number) : STATE_TEXT[s.state]}
                 </span>
               </span>
             </button>
@@ -110,8 +114,7 @@ export default function DocumentJourney({ doc }: { doc: InvoiceDoc }) {
                 <button type="button" className="font-medium text-orange-700 underline dark:text-orange-400" onClick={() => open(d.id)}>
                   {d.number}
                 </button>
-              )}{' '}
-              · {STATUS_NAMES[d.status]}
+              )}
             </span>
           ))}
 
@@ -131,9 +134,28 @@ export default function DocumentJourney({ doc }: { doc: InvoiceDoc }) {
           </button>
         )}
 
-        {step.state === 'todo' && (
+        {step.state === 'todo' && asking && (
+          <div className="w-full space-y-2 rounded-xl border border-orange-200 bg-orange-50/60 p-3 dark:border-orange-900/60 dark:bg-orange-950/20">
+            <p className="font-medium text-slate-900 dark:text-slate-100">Make the {KIND_NAMES[step.kind].toLowerCase()}:</p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className={btnPrimary} onClick={() => make(false)} autoFocus>
+                Based on {KIND_NAMES[source.kind].toLowerCase()} {source.number}
+              </button>
+              <button type="button" className={btnGhost} onClick={() => make(true)}>
+                Start fresh
+              </button>
+              <button type="button" className={btnGhost} onClick={() => setAsking(false)}>
+                Cancel
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Based on it copies the lines, prices, discounts, notes and terms. Starting fresh keeps only the client. Either way it joins this journey.
+            </p>
+          </div>
+        )}
+        {step.state === 'todo' && !asking && (
           <>
-            <button type="button" className={btnPrimary} onClick={() => make(step.kind)}>
+            <button type="button" className={btnPrimary} onClick={() => setAsking(true)}>
               Make the {KIND_NAMES[step.kind].toLowerCase()} here
             </button>
             <button type="button" className={btnGhost} onClick={() => upload.current?.click()}>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { useDefaultView, useScrollHint } from '@unisim/sdk';
 import { computeTotals, formatDate, formatMoney, wantsDecimals } from '@unisim/doc';
 import { groupByJourney } from '../lib/journey';
@@ -65,12 +65,15 @@ function DocRow({ d, sel, open, inJourney }: { d: InvoiceDoc; sel: Selection; op
 
 /**
  * Documents made from each other, together (Documents ▸ All): the client and
- * subject once, with a tick box for the lot, then each document in journey
+ * subject once, with a tick box for the lot, then its documents. Folded, it
+ * shows only its newest (James, 2026-11-03: "make any projects collapsible
+ * and just show their latest document"); unfolded, all of them in project
  * order. Its newest document's subject wins — the latest word on the job.
  */
-function JourneyGroup({ docs, sel, open }: { docs: InvoiceDoc[]; sel: Selection; open: (id: string) => void }) {
+function JourneyGroup({ docs, sel, open, folded, onToggle }: { docs: InvoiceDoc[]; sel: Selection; open: (id: string) => void; folded: boolean; onToggle: () => void }) {
   const newest = docs.reduce((a, b) => (b.createdAt > a.createdAt ? b : a));
   const all = docs.every((d) => sel.has(d.id));
+  const body = useId();
   return (
     <li className="bg-slate-50/70 pb-1 dark:bg-slate-950/30">
       <div className="flex items-center">
@@ -81,7 +84,13 @@ function JourneyGroup({ docs, sel, open }: { docs: InvoiceDoc[]; sel: Selection;
             label={`Select the ${docs.length} documents for ${newest.client.name || 'this client'}`}
           />
         </div>
-        <div className="flex min-w-0 flex-1 items-baseline justify-between gap-3 px-4 pb-1 pt-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={!folded}
+          aria-controls={body}
+          className="flex min-w-0 flex-1 items-baseline justify-between gap-3 px-4 pb-1 pt-3 text-left"
+        >
           <span className="min-w-0">
             <span className="flex items-center gap-2">
               <span className="truncate font-medium text-slate-900 dark:text-slate-100">{newest.client.name || 'No client yet'}</span>
@@ -89,11 +98,16 @@ function JourneyGroup({ docs, sel, open }: { docs: InvoiceDoc[]; sel: Selection;
             </span>
             {newest.subject && <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{newest.subject}</span>}
           </span>
-          <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">Project · {docs.length} documents</span>
-        </div>
+          <span className="flex shrink-0 items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200">
+            {folded ? `Project · show all ${docs.length}` : `Project · ${docs.length} documents`}
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden className={`transition-transform ${folded ? '-rotate-90' : ''}`}>
+              <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        </button>
       </div>
-      <ul>
-        {docs.map((d) => (
+      <ul id={body}>
+        {(folded ? [newest] : docs).map((d) => (
           <DocRow key={d.id} d={d} sel={sel} open={open} inJourney />
         ))}
       </ul>
@@ -107,6 +121,15 @@ export default function DocumentsView() {
   const shows = useDefaultView<DocumentsViewKind>('documents-kind', 'all', { views: DOCUMENTS_VIEW_VALUES });
   const [kind, setKind] = useState<DocumentsViewKind>(shows.defaultView);
   const [query, setQuery] = useState('');
+  // Projects open by hand, by their first document. The rest are folded to their newest.
+  const [unfolded, setUnfolded] = useState<Set<string>>(new Set());
+  const toggleProject = (id: string) =>
+    setUnfolded((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const mine = ownCompanies(companies);
   // One company's documents at a time (James, 2026-11-03: "show a dropdown of
   // the available companies and in the list only show the documents from
@@ -259,7 +282,12 @@ export default function DocumentsView() {
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
           <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             {groups.map((g) =>
-              g.length > 1 ? <JourneyGroup key={g[0].id} docs={g} sel={sel} open={open} /> : <DocRow key={g[0].id} d={g[0]} sel={sel} open={open} />,
+              g.length > 1 ? (
+                // A search shows every match, so its projects are open.
+                <JourneyGroup key={g[0].id} docs={g} sel={sel} open={open} folded={!query.trim() && !unfolded.has(g[0].id)} onToggle={() => toggleProject(g[0].id)} />
+              ) : (
+                <DocRow key={g[0].id} d={g[0]} sel={sel} open={open} />
+              ),
             )}
             {rows.length === 0 && (
               <li className="px-4 py-6 text-center text-sm text-slate-500">

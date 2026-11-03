@@ -38,6 +38,10 @@ export default function App() {
   // Here, in a component that is always mounted, so a change made in Tune
   // this app still reaches the account after the dialog shuts.
   const { pref, setPref } = useUserPrefs();
+  // The RESOLVED theme ('system' already turned into light or dark): the bar
+  // and its dropdowns are inline-styled, so without it they stay light in a
+  // dark app while AppMenu's rows go dark.
+  const theme = useThemeStore((s) => s.effective);
   const tabOrder = normaliseOrder(pref<unknown>('tabOrder', null));
   const setTabOrder = (order: Tab[]) => setPref('tabOrder', order);
 
@@ -65,6 +69,7 @@ export default function App() {
         productLogo={<ProductLogo />}
         productHomeHref={import.meta.env.BASE_URL}
         actions={<AppMenu />}
+        theme={theme}
         themeStore={useThemeStore}
         appPreferences={
           <>

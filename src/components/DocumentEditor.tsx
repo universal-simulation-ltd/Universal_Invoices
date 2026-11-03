@@ -55,16 +55,8 @@ function withFields(doc: InvoiceDoc, from: InvoiceDoc, sections: Iterable<Sectio
   return out as unknown as InvoiceDoc;
 }
 
-// Which sections are folded away: a per-viewer convenience, so localStorage.
-const COLLAPSED = 'universal-invoices:collapsed-sections';
-function readCollapsed(): Set<SectionId> {
-  try {
-    const v: unknown = JSON.parse(localStorage.getItem(COLLAPSED) ?? '[]');
-    return new Set(Array.isArray(v) ? (v.filter((x) => SECTIONS.includes(x)) as SectionId[]) : []);
-  } catch {
-    return new Set();
-  }
-}
+/** The form section that fills in a part of the PDF. */
+const SECTION_OF = Object.fromEntries(SECTIONS.flatMap((id) => PDF_PARTS[id].map((part) => [part, id]))) as Record<BusinessSection, SectionId>;
 
 /**
  * One document: the form on the left, the real PDF on the right. Full width
@@ -171,20 +163,33 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
   const [focused, setFocused] = useState<SectionId | null>(null);
   const pointed = hovered ?? focused;
 
-  const [collapsed, setCollapsed] = useState(readCollapsed);
+  // Every section starts folded (James, 2026-11-03: "have all collapsed and
+  // on the viewer on hover highlight a section and on click open that
+  // collapsible"): the PDF is the map, a click on a part of it opens its section.
+  const [collapsed, setCollapsed] = useState<Set<SectionId>>(() => new Set(SECTIONS));
   const toggle = useCallback((id: SectionId) => {
     setCollapsed((c) => {
       const next = new Set(c);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      try {
-        localStorage.setItem(COLLAPSED, JSON.stringify([...next]));
-      } catch {
-        /* folded for this visit only */
-      }
       return next;
     });
   }, []);
+  // The section under the pointer on the preview, and the one a click on it opened (to scroll to).
+  const [overPart, setOverPart] = useState<BusinessSection | null>(null);
+  const overSection = overPart ? SECTION_OF[overPart] : null;
+  const [reveal, setReveal] = useState<{ id: SectionId; at: number } | null>(null);
+  const openFromPdf = (part: BusinessSection) => {
+    const id = SECTION_OF[part];
+    if (!id) return;
+    setCollapsed((c) => new Set([...c].filter((x) => x !== id)));
+    setPane('edit');
+    setReveal({ id, at: Date.now() });
+  };
+  useEffect(() => {
+    if (!reveal) return;
+    document.querySelector(`[data-section="${reveal.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [reveal]);
 
   // The signed copy (SignDialog), while it is still of this document.
   const signedCurrent = !!doc.signed && doc.signed.fingerprint === pdfFingerprint(doc);
@@ -237,6 +242,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
     id,
     dirty: dirty.has(id),
     collapsed: collapsed.has(id),
+    marked: overSection === id,
     onToggle: () => toggle(id),
     onSave: () => save([id]),
     onCancel: () => cancel(id),
@@ -487,8 +493,10 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                 <LinesInput rows={3} value={d.client.address} onChange={(address) => edit('client', { client: { ...d.client, address } })} />
               </Field>
             </div>
-            {/* Printed "Attn: name, role" and the email under the address. */}
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            {/* Printed "Attn: name, role" and the email under the address.
+                One under another, each the full width (James, 2026-11-03:
+                "stack contact name, role, email, so each gets more space"). */}
+            <div className="mt-3 grid gap-3">
               {(['name', 'role', 'email'] as const).map((k) => (
                 <Field key={k} label={k === 'name' ? 'Contact name' : k === 'role' ? 'Role' : 'Email'}>
                   <input
@@ -613,7 +621,14 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
 
         <div className={`${pane === 'preview' ? '' : 'hidden lg:block'}`}>
           <div className="lg:sticky lg:top-4">
-            <PdfPreview doc={doc} highlight={pointed ? PDF_PARTS[pointed] : null} file={signedCurrent ? signedBlob : undefined} />
+            <PdfPreview
+              doc={doc}
+              highlight={pointed ? PDF_PARTS[pointed] : null}
+              file={signedCurrent ? signedBlob : undefined}
+              hovered={overSection ? PDF_PARTS[overSection] : null}
+              onHover={setOverPart}
+              onPick={openFromPdf}
+            />
           </div>
         </div>
       </div>
@@ -660,6 +675,7 @@ function Section({
   children,
   dirty,
   collapsed,
+  marked,
   onToggle,
   onSave,
   onCancel,
@@ -675,6 +691,8 @@ function Section({
   children: ReactNode;
   dirty: boolean;
   collapsed: boolean;
+  /** Its part of the PDF is under the pointer on the preview. */
+  marked: boolean;
   onToggle: () => void;
   onSave: () => void;
   onCancel: () => void;
@@ -688,7 +706,7 @@ function Section({
   const body = useId();
   return (
     <section
-      className={`${card} transition-shadow ${dirty ? 'ring-2 ring-amber-300 dark:ring-amber-800' : ''}`}
+      className={`${card} scroll-mt-4 transition-shadow ${dirty ? 'ring-2 ring-amber-300 dark:ring-amber-800' : marked ? 'ring-2 ring-orange-300 dark:ring-orange-800' : ''}`}
       onMouseEnter={() => onPoint(true)}
       onMouseLeave={() => onPoint(false)}
       onFocus={() => onFocusIn(true)}

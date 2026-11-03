@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BUSINESS_PAGE, businessSections, layoutBusinessDoc, type BusinessSection, type LayoutPage, type SectionBox } from '@unisim/doc';
 import { changedBoxes } from '../lib/changes';
+
+const PAD = 4; // points around a part's box
 import { toBusinessDoc } from '../lib/convert';
 import { renderPdf } from '../lib/pdf';
 import type { InvoiceDoc } from '../lib/types';
@@ -17,7 +19,25 @@ import type { InvoiceDoc } from '../lib/types';
  * After a save, what changed flashes once the new pages are up, scrolled into
  * view if it is not (lib/changes.ts).
  */
-export default function PdfPreview({ doc, highlight, file }: { doc: InvoiceDoc; highlight: BusinessSection[] | null; /** The signed copy, shown instead while it is current. */ file?: Blob }) {
+export default function PdfPreview({
+  doc,
+  highlight,
+  file,
+  hovered,
+  onHover,
+  onPick,
+}: {
+  doc: InvoiceDoc;
+  /** Marked and scrolled to: the part of the form being worked in. */
+  highlight: BusinessSection[] | null;
+  /** The signed copy, shown instead while it is current. */
+  file?: Blob;
+  /** Marked, never scrolled to: what the pointer is over on the preview itself. */
+  hovered?: BusinessSection[] | null;
+  /** The part of the page under the pointer (James, 2026-11-03: "on the viewer on hover highlight a section and on click open that collapsible"). */
+  onHover?: (part: BusinessSection | null) => void;
+  onPick?: (part: BusinessSection) => void;
+}) {
   const scroller = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [pages, setPages] = useState<{ src: string; count: number; dropped: string[]; url: string } | null>(null);
@@ -95,6 +115,15 @@ export default function PdfPreview({ doc, highlight, file }: { doc: InvoiceDoc; 
   // The highlighted part in view: scrolled inside the pane, never the page.
   const marks = highlight ? boxes.filter((b) => highlight.includes(b.section)) : [];
   const first = marks[0];
+  const pointedAt = hovered ? boxes.filter((b) => hovered.includes(b.section) && !marks.includes(b)) : [];
+  // The part under the pointer on page `i`, in points from the page's top left.
+  const partAt = (i: number, e: React.MouseEvent<HTMLDivElement>): BusinessSection | null => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const scale = r.width / BUSINESS_PAGE.width;
+    const x = (e.clientX - r.left) / scale;
+    const y = (e.clientY - r.top) / scale;
+    return boxes.find((b) => b.page === i && x >= b.x - PAD && x <= b.x + b.width + PAD && y >= b.top - PAD && y <= b.top + b.height + PAD)?.section ?? null;
+  };
   useEffect(() => {
     const el = scroller.current;
     if (!el || !first || !width) return;
@@ -126,7 +155,6 @@ export default function PdfPreview({ doc, highlight, file }: { doc: InvoiceDoc; 
 
   const srcs = pages?.src.split('\n') ?? [];
   const k = width / BUSINESS_PAGE.width;
-  const PAD = 4;
   return (
     <>
       <div
@@ -135,7 +163,19 @@ export default function PdfPreview({ doc, highlight, file }: { doc: InvoiceDoc; 
       >
         {pages ? (
           srcs.map((src, i) => (
-            <div key={i} className="relative bg-white shadow-sm">
+            <div
+              key={i}
+              className={`relative bg-white shadow-sm ${hovered?.length ? 'cursor-pointer' : ''}`}
+              onMouseMove={onHover && ((e) => onHover(partAt(i, e)))}
+              onMouseLeave={onHover && (() => onHover(null))}
+              onClick={
+                onPick &&
+                ((e) => {
+                  const part = partAt(i, e);
+                  if (part) onPick(part);
+                })
+              }
+            >
               <img src={src} alt={`Page ${i + 1}`} className="block w-full" draggable={false} />
               {marks
                 .filter((b) => b.page === i)
@@ -144,6 +184,16 @@ export default function PdfPreview({ doc, highlight, file }: { doc: InvoiceDoc; 
                     key={`${b.section}-${n}`}
                     aria-hidden
                     className="pointer-events-none absolute rounded-md bg-orange-400/15 ring-2 ring-orange-500/70 transition-opacity"
+                    style={{ left: (b.x - PAD) * k, top: (b.top - PAD) * k, width: (b.width + 2 * PAD) * k, height: (b.height + 2 * PAD) * k }}
+                  />
+                ))}
+              {pointedAt
+                .filter((b) => b.page === i)
+                .map((b, n) => (
+                  <div
+                    key={`over-${b.section}-${n}`}
+                    aria-hidden
+                    className="pointer-events-none absolute rounded-md bg-orange-400/10 ring-2 ring-orange-400/60"
                     style={{ left: (b.x - PAD) * k, top: (b.top - PAD) * k, width: (b.width + 2 * PAD) * k, height: (b.height + 2 * PAD) * k }}
                   />
                 ))}

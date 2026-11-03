@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BUSINESS_PAGE, businessSections, layoutBusinessDoc, type BusinessSection } from '@unisim/doc';
+import { BUSINESS_PAGE, businessSections, layoutBusinessDoc, type BusinessSection, type LayoutPage, type SectionBox } from '@unisim/doc';
+import { changedBoxes } from '../lib/changes';
 import { toBusinessDoc } from '../lib/convert';
 import { renderPdf } from '../lib/pdf';
 import type { InvoiceDoc } from '../lib/types';
@@ -12,6 +13,9 @@ import type { InvoiceDoc } from '../lib/types';
  * that section"). The boxes come from the layout itself (@unisim/doc
  * `businessSections`), so they sit exactly on what they mark. What is drawn is
  * the same `renderPdf` the download is — the PDF is never a second copy.
+ *
+ * After a save, what changed flashes once the new pages are up, scrolled into
+ * view if it is not (lib/changes.ts).
  */
 export default function PdfPreview({ doc, highlight, file }: { doc: InvoiceDoc; highlight: BusinessSection[] | null; /** The signed copy, shown instead while it is current. */ file?: Blob }) {
   const scroller = useRef<HTMLDivElement>(null);
@@ -28,7 +32,20 @@ export default function PdfPreview({ doc, highlight, file }: { doc: InvoiceDoc; 
   }, []);
 
   const result = useMemo(() => (file ? { blob: file, dropped: [] as string[] } : renderPdf(doc)), [doc, file]);
-  const boxes = useMemo(() => businessSections(layoutBusinessDoc(toBusinessDoc(doc))), [doc]);
+  const layout = useMemo(() => layoutBusinessDoc(toBusinessDoc(doc)), [doc]);
+  const boxes = useMemo(() => businessSections(layout), [layout]);
+
+  // The same document laid out again: what changed waits for its pages to be drawn.
+  const before = useRef<{ id: string; layout: LayoutPage[] } | null>(null);
+  const pending = useRef<SectionBox[] | null>(null);
+  const [flash, setFlash] = useState<{ boxes: SectionBox[]; fading: boolean; at: number } | null>(null);
+  useEffect(() => {
+    const was = before.current;
+    before.current = { id: doc.id, layout };
+    if (!was || was.id !== doc.id || file) return;
+    const changed = changedBoxes(was.layout, layout);
+    pending.current = changed.length ? changed : null;
+  }, [layout, doc.id, file]);
 
   useEffect(() => {
     if (!width) return;
@@ -60,6 +77,10 @@ export default function PdfPreview({ doc, highlight, file }: { doc: InvoiceDoc; 
             if (old) URL.revokeObjectURL(old.url);
             return { src: srcs.join('\n'), count: pdf.numPages, dropped: result.dropped, url: URL.createObjectURL(result.blob) };
           });
+          if (pending.current) {
+            setFlash({ boxes: pending.current, fading: false, at: Date.now() });
+            pending.current = null;
+          }
         } else srcs.forEach((u) => URL.revokeObjectURL(u));
       } finally {
         await pdf.destroy();
@@ -84,6 +105,25 @@ export default function PdfPreview({ doc, highlight, file }: { doc: InvoiceDoc; 
     // eslint-disable-next-line react-hooks/exhaustive-deps -- on a new section (or page), not every re-render
   }, [first?.section, first?.page, first?.top, width]);
 
+  // The flash: on view if it is not already, then fading out.
+  useEffect(() => {
+    const el = scroller.current;
+    const top = flash?.boxes[0];
+    if (!flash || !el || !top || !width) return;
+    const pageH = (width * BUSINESS_PAGE.height) / BUSINESS_PAGE.width;
+    const gap = 12;
+    const y = top.page * (pageH + gap) + (top.top / BUSINESS_PAGE.height) * pageH;
+    const h = (top.height / BUSINESS_PAGE.height) * pageH;
+    if (y < el.scrollTop || y + h > el.scrollTop + el.clientHeight) el.scrollTo({ top: Math.max(0, y - el.clientHeight / 3), behavior: 'smooth' });
+    const fade = setTimeout(() => setFlash((f) => (f && f.at === flash.at ? { ...f, fading: true } : f)), 1400);
+    const gone = setTimeout(() => setFlash((f) => (f && f.at === flash.at ? null : f)), 2200);
+    return () => {
+      clearTimeout(fade);
+      clearTimeout(gone);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per flash
+  }, [flash?.at]);
+
   const srcs = pages?.src.split('\n') ?? [];
   const k = width / BUSINESS_PAGE.width;
   const PAD = 4;
@@ -107,12 +147,27 @@ export default function PdfPreview({ doc, highlight, file }: { doc: InvoiceDoc; 
                     style={{ left: (b.x - PAD) * k, top: (b.top - PAD) * k, width: (b.width + 2 * PAD) * k, height: (b.height + 2 * PAD) * k }}
                   />
                 ))}
+              {flash?.boxes
+                .filter((b) => b.page === i)
+                .map((b, n) => (
+                  <div
+                    key={`flash-${flash.at}-${n}`}
+                    aria-hidden
+                    className={`pointer-events-none absolute rounded bg-emerald-400/25 ring-2 ring-emerald-500 transition-opacity duration-700 ${flash.fading ? 'opacity-0' : 'opacity-100'}`}
+                    style={{ left: (b.x - PAD) * k, top: (b.top - PAD / 2) * k, width: (b.width + 2 * PAD) * k, height: (b.height + PAD) * k }}
+                  >
+                    {n === 0 && b === flash.boxes[0] && <span className="absolute bottom-full right-0 mb-1 rounded-full bg-emerald-600 px-1.5 py-px text-[10px] font-semibold text-white shadow-sm">Updated</span>}
+                  </div>
+                ))}
             </div>
           ))
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-slate-400">Preparing the preview…</div>
         )}
       </div>
+      <span className="sr-only" role="status">
+        {flash ? 'The preview has updated.' : ''}
+      </span>
       {pages && (
         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
           {pages.count} page{pages.count === 1 ? '' : 's'} · made in this browser, nothing uploaded ·{' '}

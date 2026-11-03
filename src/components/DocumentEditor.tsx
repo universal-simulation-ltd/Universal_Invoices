@@ -18,7 +18,10 @@ import { ExampleChip, Field, LinesInput, btnGhost, btnPrimary, card, confirmActi
  * The form's sections, the fields each one edits, and the parts of the PDF it
  * fills in. Each section keeps its edits until its Save (James, 2026-11-03:
  * "On each section have 'save' button after an edit which then refreshes the
- * PDF as opposed to always refreshing the pdf every edit").
+ * PDF as opposed to always refreshing the pdf every edit") — or until you
+ * leave the box you are typing in (later the same day: "auto update pdf edit
+ * when clicking out of box"), when it saves itself and the preview flashes
+ * what changed.
  */
 type SectionId = 'from' | 'document' | 'client' | 'lines' | 'terms';
 const FIELDS: Record<SectionId, (keyof InvoiceDoc)[]> = {
@@ -84,6 +87,9 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- on the saved document only
   }, [doc]);
   const edit = (section: SectionId, patch: Partial<InvoiceDoc>) => {
+    // The text box this edit was typed in, if it was: the section saves once you leave it.
+    const el = document.activeElement;
+    boxOf.current.set(section, isTextBox(el) ? el : null);
     setDraft((d) => ({ ...d, ...patch }));
     setDirty((s) => new Set(s).add(section));
   };
@@ -99,6 +105,37 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
     setDraft((d) => withFields(d, doc, [section]));
     setDirty((s) => new Set([...s].filter((x) => x !== section)));
   };
+
+  // Saving as you go: a section saves once you leave the box you typed in. A
+  // text box keeps its edits while the cursor is in it (so Cancel still has
+  // something to undo); a list, a tick box, a picture or a line added or moved
+  // saves straight away. A press on Cancel holds the save — the box it takes
+  // the cursor from would otherwise save just before the Cancel lands.
+  const boxOf = useRef(new Map<SectionId, Element | null>());
+  const holding = useRef(false);
+  const [left, setLeft] = useState(0);
+  const hold = () => {
+    holding.current = true;
+    window.addEventListener(
+      'pointerup',
+      () =>
+        setTimeout(() => {
+          holding.current = false;
+          setLeft((n) => n + 1);
+        }),
+      { once: true },
+    );
+  };
+  useEffect(() => {
+    if (!dirty.size) return;
+    const t = setTimeout(() => {
+      if (holding.current) return;
+      const done = [...dirty].filter((s) => !stillIn(s, boxOf.current.get(s)));
+      if (done.length) save(done);
+    });
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `save` reads this render's draft
+  }, [dirty, draft, left]);
 
   // Leaving the document saves what is open — nothing typed is lost. Not a
   // deleted one: saving it would bring it back.
@@ -204,6 +241,8 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
     onSave: () => save([id]),
     onCancel: () => cancel(id),
     onPoint: (on: boolean) => setHovered(on ? id : null),
+    onLeave: () => setLeft((n) => n + 1),
+    onHold: hold,
     onFocusIn: (on: boolean) => setFocused((f) => (on ? id : f === id ? null : f)),
   });
 
@@ -597,12 +636,24 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
   );
 }
 
+const TEXT_TYPES = new Set(['text', 'search', 'email', 'tel', 'url', 'number', 'password']);
+
+const isTextBox = (el: Element | null): el is HTMLElement => el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && TEXT_TYPES.has(el.type));
+
+/** Whether a section is still being worked in: the cursor is in the box its edit was typed in, or on its Cancel (reached with Tab). */
+function stillIn(section: SectionId, box: Element | null | undefined): boolean {
+  const el = document.activeElement;
+  if (box && el === box) return true;
+  return el instanceof HTMLElement && el.hasAttribute('data-keep') && el.closest('[data-section]')?.getAttribute('data-section') === section;
+}
+
 /**
  * A form section: a header that folds it away (with a one-line summary while
  * folded), its own Save and Cancel once something in it has changed, and the
  * hover / focus that marks its part of the preview.
  */
 function Section({
+  id,
   title,
   summary,
   actions,
@@ -614,6 +665,8 @@ function Section({
   onCancel,
   onPoint,
   onFocusIn,
+  onLeave,
+  onHold,
 }: {
   id: SectionId;
   title: string;
@@ -627,6 +680,10 @@ function Section({
   onCancel: () => void;
   onPoint: (on: boolean) => void;
   onFocusIn: (on: boolean) => void;
+  /** Focus moved within or out of the section: time to see whether it saves. */
+  onLeave: () => void;
+  /** A press on Cancel is starting: don't save under it. */
+  onHold: () => void;
 }) {
   const body = useId();
   return (
@@ -635,8 +692,10 @@ function Section({
       onMouseEnter={() => onPoint(true)}
       onMouseLeave={() => onPoint(false)}
       onFocus={() => onFocusIn(true)}
+      data-section={id}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onFocusIn(false);
+        onLeave();
       }}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -650,7 +709,7 @@ function Section({
         {!collapsed && actions}
         {dirty && (
           <>
-            <button type="button" className={`${btnGhost} py-1.5`} onClick={onCancel}>
+            <button type="button" className={`${btnGhost} py-1.5`} data-keep onPointerDown={onHold} onClick={onCancel}>
               Cancel
             </button>
             <button type="button" className={`${btnPrimary} py-1.5`} onClick={onSave}>

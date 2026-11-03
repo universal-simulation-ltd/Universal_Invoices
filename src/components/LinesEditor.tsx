@@ -2,7 +2,7 @@ import { computeTotals, formatMoney, wantsDecimals } from '@unisim/doc';
 import { arrange } from '../lib/arrange';
 import { blankLine, lineFromProduct } from '../lib/convert';
 import type { DocLine, Discount, Folder, InvoiceDoc, Product } from '../lib/types';
-import ImagePicker from './ImagePicker';
+import ImagePicker, { type PictureChoice } from './ImagePicker';
 import { DecimalInput, DiscountInput, MoneyInput, btnGhost, btnIcon, inputCls, labelCls, selectBase } from './ui';
 
 /**
@@ -33,6 +33,12 @@ export default function LinesEditor({
   const decimals = wantsDecimals({ lines: doc.lines, taxMode: doc.taxMode, discount: doc.discount, decimals: undefined });
   const money = (v: number) => formatMoney(v, doc.currency, doc.numberStyle, decimals);
 
+  // The catalogue's pictures, in its own order, to pick for a line.
+  const pictures: PictureChoice[] = arrange(products, folders)
+    .flatMap((e) => (e.kind === 'folder' ? e.items : [e.product]))
+    .filter((p) => p.image)
+    .map((p) => ({ id: p.id, label: [p.code, p.description.split('\n')[0]].filter(Boolean).join(' — '), image: p.image! }));
+
   const option = (p: Product) => (
     <option key={p.id} value={p.id}>
       {[p.code, p.description.split('\n')[0]].filter(Boolean).join(' — ').slice(0, 80)}
@@ -56,7 +62,7 @@ export default function LinesEditor({
       {doc.lines.map((line, i) => (
         <div key={line.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
           <div className="flex items-start gap-3">
-            <ImagePicker compact value={line.image} onChange={(image) => set(i, { image })} maxEdge={240} label="picture" />
+            <ImagePicker compact value={line.image} onChange={(image) => set(i, { image })} maxEdge={240} label="picture" choices={pictures} />
             <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[9rem_minmax(0,1fr)]">
               <input className={inputCls} placeholder="Code" aria-label="Code" value={line.code} onChange={(e) => set(i, { code: e.target.value })} />
               <textarea

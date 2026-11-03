@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { computeTotals } from '@unisim/doc';
-import { clientSnapshot, companyForImport, convertDocument, importedDocument, newDocument } from './convert';
+import { clientSnapshot, companyForImport, convertDocument, importedDocument, newDocument, withCataloguePictures } from './convert';
 import { exampleData } from './example';
 import { journeyOf, nextStep, relinkAfterDelete, sourceFor, startOf, stepsOf } from './journey';
 import { changedBy, upgrade } from './legacy';
@@ -20,7 +20,7 @@ async function readBack(doc: InvoiceDoc) {
 }
 
 describe('import PDF', () => {
-  const { company, client, doc } = exampleData('2026-10-29');
+  const { company, client, product, doc } = exampleData('2026-10-29');
 
   it('reads back a quote this app printed', async () => {
     const read = await readBack({ ...doc, client: clientSnapshot(client), notes: 'Thanks for your business.\nSecond line' });
@@ -75,6 +75,17 @@ describe('import PDF', () => {
     expect(read.discount).toEqual({ percent: 5 });
     expect(read.lines[0]).toMatchObject({ unitPrice: 95000, discount: { amount: 15000 } });
     expect(read.statedTotal).toBe(computeTotals({ ...doc, discount: { percent: 5 }, lines: [{ ...doc.lines[1], discount: { amount: 15000 } }] }).gross);
+  });
+
+  it('gives imported lines the picture of the catalogue item with their code', () => {
+    const picture = { dataUrl: 'data:image/jpeg;base64,', width: 1, height: 1 };
+    const lines = [
+      { id: 'a', code: 'lic-12 ', description: '', quantity: 1, unit: '', unitPrice: 0 },
+      { id: 'b', code: 'NOPE', description: '', quantity: 1, unit: '', unitPrice: 0 },
+    ];
+    const [hit, miss] = withCataloguePictures(lines, [{ ...product, code: 'LIC-12', image: picture }]);
+    expect(hit).toMatchObject({ image: picture, productId: product.id });
+    expect(miss.image).toBeUndefined();
   });
 
   it('reads the date shapes people print', () => {

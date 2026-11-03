@@ -352,6 +352,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
  */
 function ImportedCheck({ doc, onChecked }: { doc: InvoiceDoc; onChecked: () => void }) {
   const { file, statedTotal, checked } = doc.imported!;
+  const bare = doc.lines.filter((l) => !l.image).length;
   const priced = doc.kind !== 'delivery-note';
   const gross = priced ? computeTotals(doc).gross : undefined;
   const money = (minor: number) => formatMoney(minor, doc.currency, doc.numberStyle, true);
@@ -371,6 +372,11 @@ function ImportedCheck({ doc, onChecked }: { doc: InvoiceDoc; onChecked: () => v
         <p>
           Read from {original}. Check the lines, prices and dates against it before making anything from this {KIND_NAMES[doc.kind].toLowerCase()}.
         </p>
+        {bare > 0 && (
+          <p className="text-slate-600 dark:text-slate-400">
+            {bare === doc.lines.length ? 'The lines have' : `${bare} line${bare === 1 ? ' has' : 's have'}`} no picture — a PDF’s pictures are not read. Tap the box beside a line to pick one from your catalogue or upload one.
+          </p>
+        )}
         {gross !== undefined && (
           <p className={matches === false ? 'font-semibold text-red-700 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'}>
             {statedTotal !== undefined ? `The PDF’s total: ${money(statedTotal)} · ` : 'No total found in the PDF · '}

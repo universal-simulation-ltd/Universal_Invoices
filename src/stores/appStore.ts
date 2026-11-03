@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { move, type Target } from '../lib/arrange';
 import { makeBackup, mergeDataset, parseBackup } from '../lib/backup';
-import { companyForImport, companyFromRead, convertDocument, duplicateDocument, importedDocument, newDocument, uid } from '../lib/convert';
+import { companyForImport, companyFromRead, convertDocument, duplicateDocument, importedDocument, newDocument, uid, withCataloguePictures } from '../lib/convert';
 import { relinkAfterDelete } from '../lib/journey';
 import { changedBy, upgrade } from '../lib/legacy';
 import { shareHooks } from '../lib/shareHooks';
@@ -416,7 +416,9 @@ export const useAppStore = create<AppState>((set, get) => {
         company = companyFromRead(read);
         made = true;
       }
-      const { doc, company: next } = importedDocument(read, company, file, fallbackKind, todayIso());
+      const result = importedDocument(read, company, file, fallbackKind, todayIso());
+      const doc = { ...result.doc, lines: withCataloguePictures(result.doc.lines, get().products) };
+      const next = result.company;
       await added(doc, next);
       if (made) await dropExample('companies');
       set({

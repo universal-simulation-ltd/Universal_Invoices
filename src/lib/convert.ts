@@ -4,7 +4,7 @@
 import type { BusinessDoc, PdfImage } from '@unisim/doc';
 import { addDays, counterAfter, defaultNumbering, formatNumber } from './numbering';
 import type { ReadDocument } from './readPdf';
-import type { Attachment, BusinessDocKind, Client, Company, DocLine, InvoiceDoc, StoredImage } from './types';
+import type { Attachment, BusinessDocKind, Client, Company, DocLine, InvoiceDoc, Product, StoredImage } from './types';
 
 export function uid(): string {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -289,4 +289,18 @@ export function importedDocument(
   // Its own number, not the next one: the counter only moves past it.
   const numbering = read.number ? counterAfter(company.numbering[kind], read.number) : fresh.company.numbering[kind];
   return { doc, company: { ...company, numbering: { ...company.numbering, [kind]: numbering }, updatedAt: now } };
+}
+
+/**
+ * Imported lines take their picture from the catalogue item with the same
+ * code (James, 2026-11-03: "choose item images from their catalogue") — a
+ * PDF's pictures are not read back. Lines that match nothing are left for
+ * you to pick one for.
+ */
+export function withCataloguePictures(lines: DocLine[], products: Product[]): DocLine[] {
+  const byCode = new Map(products.filter((p) => p.code.trim() && p.image).map((p) => [p.code.trim().toLowerCase(), p]));
+  return lines.map((l) => {
+    const p = !l.image && l.code.trim() ? byCode.get(l.code.trim().toLowerCase()) : undefined;
+    return p ? { ...l, image: p.image, productId: p.id } : l;
+  });
 }

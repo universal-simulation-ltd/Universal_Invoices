@@ -1,7 +1,14 @@
-import { useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { PICTURE_TYPES, isPicture, toStored } from '../lib/picture';
 import type { StoredImage } from '../lib/types';
-import { btnGhost } from './ui';
+import { btnGhost, inputCls } from './ui';
+
+/** A picture already in the app that can be picked instead of uploading one (a catalogue item's). */
+export interface PictureChoice {
+  id: string;
+  label: string;
+  image: StoredImage;
+}
 
 /**
  * A picture box: click to choose, or drop a picture on it (James, 2026-10-30:
@@ -15,6 +22,7 @@ export default function ImagePicker({
   maxEdge,
   label,
   compact = false,
+  choices,
 }: {
   value: StoredImage | undefined;
   onChange: (img: StoredImage | undefined) => void;
@@ -22,10 +30,38 @@ export default function ImagePicker({
   maxEdge: number;
   label: string;
   compact?: boolean;
+  /**
+   * Pictures to pick from (James, 2026-11-03: "allow the user to choose item
+   * images from their catalogue or upload"). Given, a click opens a menu —
+   * Upload a picture, or one of these — instead of going straight to files.
+   */
+  choices?: PictureChoice[];
 }) {
   const input = useRef<HTMLInputElement>(null);
+  const wrap = useRef<HTMLDivElement>(null);
+  const menuId = useId();
   const [error, setError] = useState<string | null>(null);
   const [over, setOver] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [query, setQuery] = useState('');
+  const withMenu = !!choices;
+
+  useEffect(() => {
+    if (!menu) return;
+    const onDown = (e: PointerEvent) => {
+      if (!wrap.current?.contains(e.target as Node)) setMenu(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(false);
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menu]);
+
+  const q = query.trim().toLowerCase();
+  const shown = (choices ?? []).filter((c) => !q || c.label.toLowerCase().includes(q));
   const size = compact ? 'h-10 w-10' : 'h-20 w-36';
   const take = async (file: File | undefined) => {
     if (!file) return;
@@ -41,10 +77,13 @@ export default function ImagePicker({
     }
   };
   return (
-    <div className="flex items-center gap-3">
+    <div ref={wrap} className="relative flex items-center gap-3">
       <button
         type="button"
-        onClick={() => input.current?.click()}
+        onClick={() => (withMenu ? setMenu((m) => !m) : input.current?.click())}
+        aria-haspopup={withMenu ? 'dialog' : undefined}
+        aria-expanded={withMenu ? menu : undefined}
+        aria-controls={withMenu && menu ? menuId : undefined}
         onDragOver={(e) => {
           if (!e.dataTransfer.types.includes('Files')) return;
           e.preventDefault();
@@ -73,6 +112,68 @@ export default function ImagePicker({
         </button>
       )}
       {error && <span className="text-xs text-red-600">{error}</span>}
+      {menu && (
+        <div
+          id={menuId}
+          role="dialog"
+          aria-label={`Choose a ${label}`}
+          className="absolute left-0 top-full z-20 mt-2 w-72 max-w-[calc(100vw-2rem)] space-y-2 rounded-xl border border-slate-200 bg-white p-3 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+        >
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className={btnGhost}
+              onClick={() => {
+                setMenu(false);
+                input.current?.click();
+              }}
+            >
+              Upload a picture…
+            </button>
+            {value && (
+              <button
+                type="button"
+                className={btnGhost}
+                onClick={() => {
+                  setMenu(false);
+                  onChange(undefined);
+                }}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          {choices!.length > 0 ? (
+            <>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">From your catalogue</p>
+              {choices!.length > 8 && <input className={inputCls} placeholder="Search the catalogue" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search the catalogue" autoFocus />}
+              <ul className="grid max-h-60 grid-cols-4 gap-2 overflow-y-auto">
+                {shown.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      title={c.label}
+                      aria-label={`Use the picture of ${c.label}`}
+                      onClick={() => {
+                        setMenu(false);
+                        onChange(c.image);
+                      }}
+                      className={`flex h-14 w-full items-center justify-center overflow-hidden rounded-lg border bg-white hover:border-orange-400 dark:bg-slate-900 ${
+                        value?.dataUrl === c.image.dataUrl ? 'border-orange-500 ring-2 ring-orange-300' : 'border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <img src={c.image.dataUrl} alt="" className="h-full w-full object-contain" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {shown.length === 0 && <p className="text-xs text-slate-500">Nothing in the catalogue matches.</p>}
+            </>
+          ) : (
+            <p className="text-xs text-slate-500 dark:text-slate-400">Catalogue items with a picture will show here too.</p>
+          )}
+        </div>
+      )}
       <input
         ref={input}
         type="file"

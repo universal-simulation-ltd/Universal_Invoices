@@ -28,7 +28,9 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   units, prices, notes, terms and bank details — with the PDF kept beside it.
   Until you tick *Checked — it matches* it shows the PDF's total against what
   the lines read come to, and making another document from it asks first.
-  Read in your browser; a scan with no text cannot be read.
+  Read in your browser; a scan with no text cannot be read. A PDF's pictures
+  are not read back: a line takes the picture of the catalogue item with its
+  code, and any line's picture box offers Upload or one from your catalogue.
 - **A link to each document:** signed in, *Share* (and every *Download PDF*)
   gives the document a link to its PDF, kept on your Universal ID and updated
   as you edit. It is **private** — it opens only for you, signed in — until

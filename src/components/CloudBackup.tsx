@@ -26,7 +26,12 @@ interface Prefs {
   /** The copy's `rev` this browser last merged or wrote. */
   rev?: number;
 }
-const prefsKey = (uid: string) => `universal-invoices:cloud:${uid}`;
+// ⚠️ v2 (2026-11-03): `rev` says what THIS DATABASE last merged. When each
+// account got its own database (lib/store.ts) the v1 rev, written by the old
+// shared one, still matched the online copy — so a new, empty database
+// skipped the merge and uploaded itself over the copy. James lost HRV that
+// way. A new key means every account's first sync here merges first.
+const prefsKey = (uid: string) => `universal-invoices:cloud:v2:${uid}`;
 function readPrefs(uid: string): Prefs {
   try {
     return JSON.parse(localStorage.getItem(prefsKey(uid)) ?? '{}') as Prefs;
@@ -109,7 +114,13 @@ export default function CloudBackup() {
       let due = uploaded.current !== fingerprint();
       // Signed in to another account meanwhile: this answer is not for these rows.
       if (useAppStore.getState().scope !== uid) return;
-      if (row && row.rev !== readPrefs(uid).rev) {
+      // Belt and braces: with nothing here, never trust a remembered rev —
+      // an empty browser must read the copy, not replace it.
+      const empty = (() => {
+        const s = useAppStore.getState();
+        return !s.companies.some((c) => !c.orgId) && !s.documents.length && !s.clients.length && !s.products.length;
+      })();
+      if (row && (row.rev !== readPrefs(uid).rev || empty)) {
         // Something new online: another device, or this browser's first time.
         const s = useAppStore.getState();
         const merge = mergeCloud(

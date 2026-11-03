@@ -48,6 +48,14 @@ interface AppState {
    * Returns how many rows came.
    */
   adoptSignedOut: () => Promise<number>;
+  /**
+   * From this browser's signed-out rows — everything from before accounts
+   * were kept apart — the chosen companies with their documents, the clients
+   * those name and the catalogue items their lines came from; with
+   * `catalogue`, every catalogue item and folder there too. Merges; never
+   * deletes.
+   */
+  bringIn: (companyIds: string[], catalogue: boolean) => Promise<void>;
   setTab: (tab: Tab) => void;
   open: (id: string | null) => void;
   dismissNotice: () => void;
@@ -425,6 +433,34 @@ export const useAppStore = create<AppState>((set, get) => {
         notice: made
           ? `${next.name} was added to Your companies from this PDF — check its details there.`
           : null,
+      });
+    },
+    bringIn: async (companyIds, catalogue) => {
+      if (getScope() === null) return;
+      const theirs = upgrade(await loadAll(null));
+      const ids = new Set(companyIds);
+      const documents = theirs.documents.filter((d) => ids.has(d.companyId) && !d.example);
+      const clientIds = new Set(documents.map((d) => d.clientId).filter(Boolean));
+      const productIds = new Set(documents.flatMap((d) => d.lines.map((l) => l.productId)).filter(Boolean));
+      const products = theirs.products.filter((p) => !p.example && (catalogue || productIds.has(p.id)));
+      const folderIds = new Set(products.map((p) => p.folderId).filter(Boolean));
+      const incoming = {
+        companies: theirs.companies.filter((c) => ids.has(c.id)),
+        clients: theirs.clients.filter((c) => clientIds.has(c.id)),
+        products,
+        folders: theirs.folders.filter((f) => catalogue || folderIds.has(f.id)),
+        documents,
+      };
+      const { companies, clients, products: mineP, folders, documents: mineD } = get();
+      const { write, added: n, updated } = mergeDataset({ companies, clients, products: mineP, folders, documents: mineD }, incoming);
+      await putMany(write);
+      set({
+        companies: write.companies.reduce(upsert, companies),
+        clients: write.clients.reduce(upsert, clients),
+        products: write.products.reduce(upsert, mineP),
+        folders: write.folders.reduce(upsert, folders),
+        documents: write.documents.reduce(upsert, mineD),
+        notice: `Brought in from this browser: ${n} added, ${updated} updated. Nothing here was deleted.`,
       });
     },
     markStep: (rootId, kind, mark) => {

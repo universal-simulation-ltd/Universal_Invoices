@@ -4,6 +4,7 @@ import { KIND_NAMES, KIND_ORDER, type Company } from '../lib/types';
 import { ownCompanies, useAppStore } from '../stores/appStore';
 import { useActiveCompany } from './activeCompany';
 import ImagePicker from './ImagePicker';
+import FromBefore from './FromBefore';
 import { HUB_DETAILS, OrgRestore, useLiveOrg } from './OrgSync';
 import { saveSpreadsheet } from './exportSheet';
 import RecordList from './RecordList';
@@ -44,6 +45,7 @@ export default function CompaniesView() {
   return (
     <div className="space-y-4">
     <OrgRestore />
+    <FromBefore />
     <RecordList<Company>
       rows={companies}
       noun="company"

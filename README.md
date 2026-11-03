@@ -5,7 +5,7 @@
 Set up your company once — logo, address, bank details, legal footer — keep a
 catalogue of what you sell and a list of who you sell to, and make a numbered
 document in a few clicks. The PDF is drawn in your browser and previewed live
-beside the form. Each document shows its **journey** — estimate, quote, pro
+beside the form. Each document shows its **project** — estimate, quote, pro
 forma, invoice, delivery note — and the next step is made from it in a click,
 every line carried across under a new number.
 
@@ -29,7 +29,7 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   document. While the document is unchanged, the preview, Download and Share
   use it; edit it and it says the signature is on the earlier version. *Open
   in Universal PDF* hands the same PDF to Universal PDF for everything else.
-- **The journey:** above every document, its five steps from estimate to
+- **The project:** above every document, its five steps from estimate to
   delivery note. A step is made here (*Make the invoice here*, which asks
   whether to base it on the step before — lines, prices, terms — or start
   fresh with only the client), or — when it was done somewhere else —

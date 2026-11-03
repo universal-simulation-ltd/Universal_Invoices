@@ -89,7 +89,7 @@ function JourneyGroup({ docs, sel, open }: { docs: InvoiceDoc[]; sel: Selection;
             </span>
             {newest.subject && <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{newest.subject}</span>}
           </span>
-          <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">Journey · {docs.length} documents</span>
+          <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">Project · {docs.length} documents</span>
         </div>
       </div>
       <ul>
@@ -153,8 +153,11 @@ export default function DocumentsView() {
   const from = (mine.length > 1 || orphans > 0) && fromCompany && (
     <label className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
       Company
+      {/* A long name ends in "…" rather than pushing the toolbar about. */}
       <select
-        className={selectBase}
+        className={`${selectBase} truncate`}
+        style={{ maxWidth: '16rem' }}
+        title={showOthers ? undefined : fromCompany.name}
         value={showOthers ? OTHERS : fromCompany.id}
         aria-label="Company"
         onChange={(e) => {
@@ -191,7 +194,7 @@ export default function DocumentsView() {
           }
         >
           {mine.length
-            ? 'Start with an estimate or a quote from New document — or Import PDF to bring in one made elsewhere. Each document shows its journey to the delivery note.'
+            ? 'Start with an estimate or a quote from New document — or Import PDF to bring in one made elsewhere. Each document shows its project, from estimate to delivery note.'
             : 'Your company’s name, address, logo and bank details go on every document — the first new document asks for them. Everything stays in this browser; sign in, and your company’s details come with you.'}
         </EmptyState>
       </div>

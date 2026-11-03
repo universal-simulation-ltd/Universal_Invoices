@@ -55,7 +55,8 @@ export default function DocumentJourney({ doc }: { doc: InvoiceDoc }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className={sectionTitle}>Journey</h2>
+        {/* "Project", not "Journey" (James, 2026-11-03); the code keeps journey. */}
+        <h2 className={sectionTitle}>Project</h2>
         <span className="text-xs text-slate-500 dark:text-slate-400">
           {done} of {shown.length} steps done
           {start > 0 && (
@@ -149,7 +150,7 @@ export default function DocumentJourney({ doc }: { doc: InvoiceDoc }) {
               </button>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Based on it copies the lines, prices, discounts, notes and terms. Starting fresh keeps only the client. Either way it joins this journey.
+              Based on it copies the lines, prices, discounts, notes and terms. Starting fresh keeps only the client. Either way it joins this project.
             </p>
           </div>
         )}

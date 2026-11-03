@@ -9,7 +9,7 @@ import ImportPdfButton from './ImportPdfButton';
 import NewDocumentButton from './NewDocumentButton';
 import { saveSpreadsheet } from './exportSheet';
 import { SelectCheckbox, SelectionBar, useSelection } from './selection';
-import { EmptyState, ExampleChip, btnGhost, exampleBorder, inputCls } from './ui';
+import { EmptyState, ExampleChip, btnGhost, exampleBorder, inputCls, selectBase } from './ui';
 
 
 function total(doc: InvoiceDoc): string {
@@ -18,30 +18,45 @@ function total(doc: InvoiceDoc): string {
   return formatMoney(t.gross, doc.currency, doc.numberStyle, wantsDecimals({ ...doc, decimals: undefined }));
 }
 
+const OTHERS = '__others';
+
 export default function DocumentsView() {
-  const { companies, documents, createDocument, open, loadExample, deleteMany, duplicate, setTab } = useAppStore();
+  const { companies, documents, createDocument, open, loadExample, deleteMany, duplicate } = useAppStore();
   // The sidebar's kind. A double tap makes it what Documents opens on.
   const shows = useDefaultView<DocumentsViewKind>('documents-kind', 'all', { views: DOCUMENTS_VIEW_VALUES });
   const [kind, setKind] = useState<DocumentsViewKind>(shows.defaultView);
   const [query, setQuery] = useState('');
   const mine = ownCompanies(companies);
-  // New documents come from the active company, chosen in Your companies.
-  const { active: fromCompany } = useActiveCompany();
+  // One company's documents at a time (James, 2026-11-03: "show a dropdown of
+  // the available companies and in the list only show the documents from
+  // that company, don't put them all together"). The dropdown IS the active
+  // company — the one new documents come from, as in Your companies.
+  const { active: fromCompany, setActive } = useActiveCompany();
   const hint = useScrollHint<HTMLElement>();
+  // Documents whose company has been deleted get an entry of their own.
+  const [others, setOthers] = useState(false);
+  const orphan = (d: InvoiceDoc) => !d.example && !mine.some((c) => c.id === d.companyId);
+  const orphans = documents.filter(orphan).length;
+  const showOthers = others && orphans > 0;
+  const scoped = useMemo(
+    () => (mine.length === 0 ? documents : documents.filter((d) => d.example || (showOthers ? orphan(d) : d.companyId === fromCompany?.id))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `orphan` reads `mine`, which follows `companies`
+    [documents, companies, fromCompany?.id, showOthers],
+  );
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: documents.length };
-    for (const d of documents) c[d.kind] = (c[d.kind] ?? 0) + 1;
+    const c: Record<string, number> = { all: scoped.length };
+    for (const d of scoped) c[d.kind] = (c[d.kind] ?? 0) + 1;
     return c;
-  }, [documents]);
+  }, [scoped]);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return documents
+    return scoped
       .filter((d) => kind === 'all' || d.kind === kind)
       .filter((d) => !q || [d.number, d.client.name, d.subject].some((s) => s.toLowerCase().includes(q)))
       .sort((a, b) => (b.date === a.date ? b.createdAt - a.createdAt : b.date.localeCompare(a.date)));
-  }, [documents, kind, query]);
+  }, [scoped, kind, query]);
   const sel = useSelection(rows.map((d) => d.id));
 
   // "New …" is always here. With no company of your own yet, it opens the
@@ -52,13 +67,27 @@ export default function DocumentsView() {
       <ImportPdfButton kind={kind} companyId={fromCompany?.id} />
     </>
   );
-  const from = mine.length > 1 && fromCompany && (
-    <p className="text-sm text-slate-500 dark:text-slate-400">
-      From <span className="font-medium text-slate-700 dark:text-slate-200">{fromCompany.name}</span> ·{' '}
-      <button type="button" className="font-medium text-orange-700 hover:underline dark:text-orange-400" onClick={() => setTab('companies')}>
-        change
-      </button>
-    </p>
+  const from = (mine.length > 1 || orphans > 0) && fromCompany && (
+    <label className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+      Company
+      <select
+        className={selectBase}
+        value={showOthers ? OTHERS : fromCompany.id}
+        aria-label="Company"
+        onChange={(e) => {
+          const v = e.target.value;
+          setOthers(v === OTHERS);
+          if (v !== OTHERS) setActive(v);
+        }}
+      >
+        {mine.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name || 'Unnamed company'}
+          </option>
+        ))}
+        {orphans > 0 && <option value={OTHERS}>From deleted companies ({orphans})</option>}
+      </select>
+    </label>
   );
 
   if (documents.length === 0) {
@@ -172,7 +201,9 @@ export default function DocumentsView() {
             ))}
             {rows.length === 0 && (
               <li className="px-4 py-6 text-center text-sm text-slate-500">
-                {query.trim() || kind === 'all' ? 'Nothing matches.' : `No ${kindPlural(kind).toLowerCase()} yet.`}
+                {query.trim()
+                  ? 'Nothing matches.'
+                  : `No ${kind === 'all' ? 'documents' : kindPlural(kind).toLowerCase()}${mine.length > 1 && fromCompany && !showOthers ? ` from ${fromCompany.name}` : ''} yet.`}
               </li>
             )}
           </ul>

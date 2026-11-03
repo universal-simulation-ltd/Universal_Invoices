@@ -56,7 +56,8 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   (`163 000 €` or `€163,000`). Euro, pound and dollar.
 - **More than one company** if you trade under more than one name. One is
   **active** — new documents come from it, so there is no company to pick on
-  each one; switch it in Your companies.
+  each one. Documents shows one company's documents at a time: its Company
+  dropdown switches the active company (as Your companies does).
 - **Duplicate** a company, client or catalogue item to start a new one from it
   — or tick documents in the list and Duplicate them: a copy with a new number.
 - **A catalogue that fills fast:** add several products at once in rows (a new

@@ -13,7 +13,7 @@ import type { InvoiceDoc } from '../lib/types';
  * `businessSections`), so they sit exactly on what they mark. What is drawn is
  * the same `renderPdf` the download is — the PDF is never a second copy.
  */
-export default function PdfPreview({ doc, highlight }: { doc: InvoiceDoc; highlight: BusinessSection[] | null }) {
+export default function PdfPreview({ doc, highlight, file }: { doc: InvoiceDoc; highlight: BusinessSection[] | null; /** The signed copy, shown instead while it is current. */ file?: Blob }) {
   const scroller = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [pages, setPages] = useState<{ src: string; count: number; dropped: string[]; url: string } | null>(null);
@@ -27,7 +27,7 @@ export default function PdfPreview({ doc, highlight }: { doc: InvoiceDoc; highli
     return () => ro.disconnect();
   }, []);
 
-  const result = useMemo(() => renderPdf(doc), [doc]);
+  const result = useMemo(() => (file ? { blob: file, dropped: [] as string[] } : renderPdf(doc)), [doc, file]);
   const boxes = useMemo(() => businessSections(layoutBusinessDoc(toBusinessDoc(doc))), [doc]);
 
   useEffect(() => {

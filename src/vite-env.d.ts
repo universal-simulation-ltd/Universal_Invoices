@@ -9,6 +9,9 @@ interface ImportMetaEnv {
    *  instead of the live relay. */
   readonly VITE_RELAY_ORIGIN?: string
   readonly VITE_PLATFORM_SUPABASE_URL?: string
+  /** Universal Signatures and Universal PDF, when not beside this app on the same site (development). */
+  readonly VITE_SIGNATURES_URL?: string
+  readonly VITE_PDF_URL?: string
   readonly VITE_PLATFORM_SUPABASE_ANON_KEY?: string
 }
 

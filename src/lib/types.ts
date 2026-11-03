@@ -235,6 +235,13 @@ export interface InvoiceDoc {
    * need to verify amount etc").
    */
   imported?: { file: Attachment; statedTotal?: number; checked: boolean };
+  /**
+   * The copy signed in Universal Signatures (James, 2026-11-03). While
+   * `fingerprint` still matches the document (lib/convert.ts
+   * `pdfFingerprint`) the preview, Download and Share use it; after an edit
+   * it is kept but said to be of an earlier version.
+   */
+  signed?: { file: Attachment; fingerprint: string; at: number; verifyUrl?: string };
   createdAt: number;
   updatedAt: number;
 }

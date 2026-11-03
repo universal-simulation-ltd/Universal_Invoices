@@ -23,8 +23,8 @@ interface Share {
   public: boolean;
 }
 
-async function pdfBase64(doc: InvoiceDoc): Promise<string> {
-  const bytes = new Uint8Array(await renderPdf(doc).blob.arrayBuffer());
+async function pdfBase64(doc: InvoiceDoc, pdf?: Blob): Promise<string> {
+  const bytes = new Uint8Array(await (pdf ?? renderPdf(doc).blob).arrayBuffer());
   let binary = '';
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(binary);
@@ -35,7 +35,7 @@ async function pdfBase64(doc: InvoiceDoc): Promise<string> {
  * makes the link if there is none yet — Download PDF does that, so saving a
  * document hands you its link.
  */
-export default function ShareLink({ doc, openSignal }: { doc: InvoiceDoc; openSignal: number }) {
+export default function ShareLink({ doc, openSignal, pdf }: { doc: InvoiceDoc; openSignal: number; /** The signed copy, shared instead while it is current. */ pdf?: Blob }) {
   const { supabase } = useUniversal();
   const { user } = useUser();
   const signedIn = !!user && !(user as { is_anonymous?: boolean }).is_anonymous;
@@ -75,7 +75,7 @@ export default function ShareLink({ doc, openSignal }: { doc: InvoiceDoc; openSi
         title: `${KIND_NAMES[doc.kind]} ${doc.number}${doc.client.name ? ` — ${doc.client.name}` : ''}`,
         file_name: pdfFileName(doc),
         mime_type: 'application/pdf',
-        data: await pdfBase64(doc),
+        data: await pdfBase64(doc, pdf),
         ...patch,
       };
       const { data, error: e } = await supabase.from('app_shares').upsert(row, { onConflict: 'user_id,product,ref_id' }).select('id, public').single();
@@ -83,7 +83,7 @@ export default function ShareLink({ doc, openSignal }: { doc: InvoiceDoc; openSi
       sent.current = doc.updatedAt;
       setShare(data as Share);
     },
-    [supabase, user, doc],
+    [supabase, user, doc, pdf],
   );
 
   const run = (fn: () => Promise<void>) => {

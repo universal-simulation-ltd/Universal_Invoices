@@ -24,6 +24,11 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   ⌘/Ctrl+S) — then the preview redraws; Download saves first. Hover a
   section, or type in it, and the preview marks and scrolls to the part of
   the PDF it fills in. The notes print as a full-width box under the totals.
+- **Sign:** opens Universal Signatures over the document; draw or pick your
+  signature, place it, Sign — the signed copy comes back and is kept with the
+  document. While the document is unchanged, the preview, Download and Share
+  use it; edit it and it says the signature is on the earlier version. *Open
+  in Universal PDF* hands the same PDF to Universal PDF for everything else.
 - **The journey:** above every document, its five steps from estimate to
   delivery note. A step is made here (*Make the invoice here*, which asks
   whether to base it on the step before — lines, prices, terms — or start

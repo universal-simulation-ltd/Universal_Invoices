@@ -323,3 +323,22 @@ export function withCataloguePictures(lines: DocLine[], products: Product[]): Do
     return p ? { ...l, image: p.image, productId: p.id } : l;
   });
 }
+
+/**
+ * A short fingerprint of everything that is printed — to tell whether a signed
+ * copy is still of this document. Not a security measure: the signed PDF is
+ * what counts.
+ */
+export function pdfFingerprint(doc: InvoiceDoc): string {
+  const { kind, number, date, validUntil, dueDate, subject, issuer, client, lines, discount, notes, paymentTerms, taxMode, taxNote, currency, language, numberStyle, signature } = doc;
+  const text = JSON.stringify([kind, number, date, validUntil, dueDate, subject, issuer, client, lines, discount, notes, paymentTerms, taxMode, taxNote, currency, language, numberStyle, signature]);
+  // FNV-1a, 32-bit, twice over (forwards and with a different basis) — plenty to spot a change.
+  let a = 0x811c9dc5;
+  let b = 0x01000193;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    a = Math.imul(a ^ c, 0x01000193) >>> 0;
+    b = Math.imul(b ^ c, 0x811c9dc5) >>> 0;
+  }
+  return `${a.toString(36)}-${b.toString(36)}-${text.length}`;
+}

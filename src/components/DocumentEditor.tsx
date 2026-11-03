@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { saveBlob } from '@unisim/media/save';
 import { computeTotals, formatMoney, type BusinessSection } from '@unisim/doc';
-import { clientFromSnapshot, clientSnapshot, issuerSnapshot, pdfFileName } from '../lib/convert';
+import { clientFromSnapshot, clientSnapshot, issuerSnapshot, pdfFileName, pdfFingerprint } from '../lib/convert';
 import { renderPdf } from '../lib/pdf';
 import { KIND_NAMES, type InvoiceDoc } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
-import { openAttachment } from './attachments';
+import { fileSize, openAttachment } from './attachments';
 import DocumentJourney from './DocumentJourney';
 import LinesEditor from './LinesEditor';
 import PdfPreview from './PdfPreview';
 import ShareLink from './ShareLink';
+import SignDialog, { type Signed } from './SignDialog';
 import { ExampleChip, Field, LinesInput, btnDanger, btnGhost, btnPrimary, card, confirmAction, inputCls, sectionTitle, selectBase, selectCls } from './ui';
 
 /**
@@ -139,17 +140,50 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
     });
   }, []);
 
+  // The signed copy (SignDialog), while it is still of this document.
+  const signedCurrent = !!doc.signed && doc.signed.fingerprint === pdfFingerprint(doc);
+  const signedBlob = useMemo(() => {
+    if (!doc.signed) return undefined;
+    const { dataUrl, type } = doc.signed.file;
+    const binary = atob(dataUrl.slice(dataUrl.indexOf(',') + 1));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type });
+  }, [doc.signed]);
+  const [signing, setSigning] = useState<Blob | null>(null);
+  const onSigned = useCallback(
+    async ({ name, bytes, verifyUrl }: Signed) => {
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const dataUrl = await new Promise<string>((resolve) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result as string);
+        r.readAsDataURL(blob);
+      });
+      const latestDoc = useAppStore.getState().documents.find((x) => x.id === doc.id) ?? doc;
+      updateDocument({
+        ...latestDoc,
+        signed: { file: { name, type: 'application/pdf', size: blob.size, dataUrl }, fingerprint: pdfFingerprint(latestDoc), at: Date.now(), ...(verifyUrl ? { verifyUrl } : {}) },
+      });
+      setSigning(null);
+      useAppStore.setState({ notice: `Signed — the preview, Download and Share now use the signed copy.` });
+    },
+    [doc, updateDocument],
+  );
+
   // Saving the PDF also offers its link (ShareLink): private until shared.
-  // Unsaved edits are saved first — the download is what the form says.
+  // Unsaved edits are saved first — the download is what the form says —
+  // and a current signed copy is what downloads.
   const [shareSignal, setShareSignal] = useState(0);
   const download = async () => {
     const saved = save(dirty);
-    await saveBlob(renderPdf(saved).blob, pdfFileName(saved));
+    if (signedCurrent && signedBlob && !dirty.size) await saveBlob(signedBlob, doc.signed!.file.name);
+    else await saveBlob(renderPdf(saved).blob, pdfFileName(saved));
     setShareSignal((n) => n + 1);
   };
 
   const d = draft;
   const dated = d.kind === 'invoice' ? 'dueDate' : d.kind === 'delivery-note' ? null : 'validUntil';
+  const expired = dated === 'validUntil' && !!d.validUntil && d.validUntil <= d.date;
   const section = (id: SectionId) => ({
     id,
     dirty: dirty.has(id),
@@ -187,11 +221,64 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
         >
           Delete
         </button>
-        <ShareLink doc={doc} openSignal={shareSignal} />
+        <button
+          type="button"
+          className={btnGhost}
+          onClick={() => {
+            const saved = save(dirty);
+            setSigning(renderPdf(saved).blob);
+          }}
+        >
+          Sign
+        </button>
+        <ShareLink doc={doc} openSignal={shareSignal} pdf={signedCurrent ? signedBlob : undefined} />
         <button type="button" className={btnPrimary} onClick={() => void download()}>
           Download PDF
         </button>
       </div>
+
+      {signing && <SignDialog doc={doc} pdf={signing} onSigned={(x) => void onSigned(x)} onClose={() => setSigning(null)} />}
+
+      {doc.signed && (
+        <div
+          className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border px-4 py-3 text-sm ${
+            signedCurrent
+              ? 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200'
+              : 'border-amber-300 bg-amber-50 text-slate-800 dark:border-amber-800/70 dark:bg-amber-950/30 dark:text-slate-200'
+          }`}
+        >
+          <span className="min-w-0 flex-1">
+            {signedCurrent
+              ? `Signed ${new Date(doc.signed.at).toLocaleString()} — the preview, Download and Share use the signed copy.`
+              : `Signed ${new Date(doc.signed.at).toLocaleString()}, but the document has changed since: the signature is on the earlier version. Download and Share use the new, unsigned one.`}
+          </span>
+          <button type="button" className="font-medium underline" onClick={() => openAttachment(doc.signed!.file)}>
+            Open the signed copy ({fileSize(doc.signed.file.size)})
+          </button>
+          {doc.signed.verifyUrl && (
+            <a className="font-medium underline" href={doc.signed.verifyUrl} target="_blank" rel="noreferrer">
+              Certificate
+            </a>
+          )}
+          {!signedCurrent && (
+            <button type="button" className="font-medium underline" onClick={() => setSigning(renderPdf(save(dirty)).blob)}>
+              Sign again
+            </button>
+          )}
+          <button
+            type="button"
+            className="font-medium underline"
+            onClick={() => {
+              if (!confirmAction('Remove the signed copy? The document stays as it is.')) return;
+              const next = { ...doc };
+              delete next.signed;
+              updateDocument(next);
+            }}
+          >
+            Remove
+          </button>
+        </div>
+      )}
 
       {doc.imported && <ImportedCheck doc={doc} onChecked={() => updateDocument({ ...doc, imported: { ...doc.imported!, checked: true } })} />}
 
@@ -249,7 +336,19 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
               </Field>
               {dated && (
                 <Field label={dated === 'dueDate' ? 'Due date' : 'Valid until'}>
-                  <input type="date" className={inputCls} value={d[dated] ?? ''} onChange={(e) => edit('document', { [dated]: e.target.value || undefined })} />
+                  <input
+                    type="date"
+                    className={`${inputCls} ${expired ? 'ring-2 ring-amber-400' : ''}`}
+                    value={d[dated] ?? ''}
+                    aria-invalid={expired || undefined}
+                    onChange={(e) => edit('document', { [dated]: e.target.value || undefined })}
+                  />
+                  {/* James, 2026-11-03: "warn if validity … is the date of the document or earlier". */}
+                  {expired && (
+                    <span className="mt-1 block text-xs font-medium text-amber-700 dark:text-amber-400">
+                      {d.validUntil === d.date ? 'This is the document’s own date' : 'This is before the document’s date'} — the offer would have expired as it is sent.
+                    </span>
+                  )}
                 </Field>
               )}
               <Field label="Subject" className={dated ? '' : 'sm:col-span-2'}>
@@ -406,7 +505,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
 
         <div className={`${pane === 'preview' ? '' : 'hidden lg:block'}`}>
           <div className="lg:sticky lg:top-4">
-            <PdfPreview doc={doc} highlight={pointed ? PDF_PARTS[pointed] : null} />
+            <PdfPreview doc={doc} highlight={pointed ? PDF_PARTS[pointed] : null} file={signedCurrent ? signedBlob : undefined} />
             {dirty.size > 0 && (
               <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400">
                 Unsaved changes are not in the preview yet — Save the section (or press {navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl'}+S).

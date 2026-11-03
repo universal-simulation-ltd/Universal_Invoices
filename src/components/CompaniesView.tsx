@@ -199,7 +199,7 @@ export default function CompaniesView() {
                 <Field label="Payment terms" className="sm:col-span-2">
                   <input className={inputCls} value={d.paymentTerms} placeholder="à la commande, 30 days…" onChange={(e) => setDefaults({ paymentTerms: e.target.value })} />
                 </Field>
-                <Field label="Quotes valid for (days)">
+                <Field label="Quotes valid for (days)" hint={d.validityDays <= 0 ? 'At 0, a new quote expires the day it is dated — its Valid until will be warned about.' : undefined}>
                   <DecimalInput value={d.validityDays} onChange={(v) => setDefaults({ validityDays: Math.max(0, Math.round(v ?? 0)) })} />
                 </Field>
                 <Field label="Invoices due after (days)">

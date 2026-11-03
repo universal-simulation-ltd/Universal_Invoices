@@ -1,4 +1,4 @@
-import { useMemo, useState, type DragEvent } from 'react';
+import { useCallback, useMemo, useState, type DragEvent } from 'react';
 import { formatMoney } from '@unisim/doc';
 import { arrange, flatten, step } from '../lib/arrange';
 import { uid } from '../lib/convert';
@@ -6,6 +6,7 @@ import { codeFromFileName, isPicture, toStored } from '../lib/picture';
 import type { Folder, NumberStyle, Product } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
 import { CatalogueFromBefore } from './FromBefore';
+import Toast from './Toast';
 import ImagePicker from './ImagePicker';
 import { saveSpreadsheet } from './exportSheet';
 import RecordList, { type TreeNode } from './RecordList';
@@ -207,6 +208,7 @@ export default function CatalogueView() {
   const [fresh, setFresh] = useState<string | null>(null);
   const [over, setOver] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const clearNotice = useCallback(() => setNotice(null), []);
   // Prices are typed in the first company's number style — the one you work in.
   const style: NumberStyle = companies[0]?.defaults.numberStyle ?? 'en';
   const currency = companies[0]?.defaults.currency ?? 'EUR';
@@ -266,14 +268,7 @@ export default function CatalogueView() {
         </div>
       )}
       <CatalogueFromBefore />
-      {notice && (
-        <div className="flex items-start justify-between gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900 dark:border-orange-900/50 dark:bg-orange-950/40 dark:text-orange-200">
-          <p>{notice}</p>
-          <button type="button" onClick={() => setNotice(null)} className="font-semibold" aria-label="Dismiss">
-            ✕
-          </button>
-        </div>
-      )}
+      <Toast message={notice} onDone={clearNotice} />
       <RecordList<Product>
         rows={sorted}
         tree={tree}

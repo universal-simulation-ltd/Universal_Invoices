@@ -60,3 +60,11 @@ body {
     font-size: max(16px, 1em) !important;
   }
 }
+
+/* Toast.tsx: rises into place. */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}

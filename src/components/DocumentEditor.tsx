@@ -338,7 +338,7 @@ function ImportedCheck({ doc, onChecked }: { doc: InvoiceDoc; onChecked: () => v
     return <p className="text-sm text-slate-600 dark:text-slate-400">Imported from {original}.</p>;
   }
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-slate-800 dark:border-amber-800/70 dark:bg-amber-950/30 dark:text-slate-200">
+    <div className="flex flex-col items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center text-sm text-slate-800 dark:border-amber-800/70 dark:bg-amber-950/30 dark:text-slate-200">
       <div className="min-w-0 flex-1 space-y-1">
         <p>
           Read from {original}. Check the lines, prices and dates against it before making anything from this {KIND_NAMES[doc.kind].toLowerCase()}.

@@ -13,6 +13,7 @@ import { DOCUMENTS_VIEWS, normaliseOrder, TAB_VALUES, TABS } from './lib/tabs';
 import { OrgSync } from './components/OrgSync';
 import CloudBackup from './components/CloudBackup';
 import SharedDocument from './components/SharedDocument';
+import Toast from './components/Toast';
 import { ShareCleanup } from './components/ShareLink';
 import { cloudFooter } from './components/cloudText';
 import { useAppStore, type Tab } from './stores/appStore';
@@ -92,14 +93,6 @@ export default function App() {
       </div>
 
       <main className={`${CONTAINER} flex-1 py-4 sm:py-6`}>
-        {notice && (
-          <div className="mb-4 flex items-start justify-between gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900 dark:border-orange-900/50 dark:bg-orange-950/40 dark:text-orange-200">
-            <p>{notice}</p>
-            <button type="button" onClick={dismissNotice} className="font-semibold" aria-label="Dismiss">
-              ✕
-            </button>
-          </div>
-        )}
 
         {SHARE_ID ? (
           <SharedDocument id={SHARE_ID} />
@@ -127,6 +120,7 @@ export default function App() {
           </>
         )}
       </main>
+      <Toast message={notice} onDone={dismissNotice} />
 
       <footer className="border-t border-slate-200 bg-white py-4 dark:border-slate-800 dark:bg-slate-900">
         <div className={`${CONTAINER} flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400`}>

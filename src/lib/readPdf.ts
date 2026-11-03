@@ -10,7 +10,7 @@
 
 import { BUSINESS_LABELS } from '@unisim/doc';
 import { parseDecimal, parseMoney } from './money';
-import type { BusinessDocKind, BusinessDocLanguage, CurrencyCode, NumberStyle } from './types';
+import type { BusinessDocKind, BusinessDocLanguage, CurrencyCode, Discount, NumberStyle } from './types';
 
 /** One run of text, as pdf.js gives it. `y` is from the TOP of the page, in points. */
 export interface PdfTextItem {
@@ -31,9 +31,10 @@ export interface ReadLine {
   description: string;
   quantity: number;
   unit: string;
-  /** Minor units. */
+  /** The catalogue price. Minor units. */
   unitPrice: number;
-  listPrice?: number;
+  /** A struck-through price above the charged one: the difference, per unit. */
+  discount?: Discount;
 }
 
 /** What was found. Anything missing is undefined or empty. */
@@ -45,13 +46,15 @@ export interface ReadDocument {
   dueDate?: string;
   subject: string;
   issuer: { name: string; address: string[]; contact: { name: string; phone: string; email: string }; bank: string[]; footer: string[] };
-  client: { name: string; address: string[]; reference: string };
+  client: { name: string; address: string[]; reference: string; contact?: { name: string; role: string; email: string } };
   lines: ReadLine[];
   notes: string;
   paymentTerms: string;
   language: BusinessDocLanguage;
   numberStyle: NumberStyle;
   currency?: CurrencyCode;
+  /** "Discount 10%" / "Remise" with the totals. */
+  discount?: Discount;
   /** The VAT rate printed with the totals, if any. */
   taxRate?: number;
   /** The total the PDF states — to check the lines against. Minor units. */
@@ -148,11 +151,13 @@ const RE = {
   total: /^(?:total|grand total)\s*:?$/i,
   totalNet: new RegExp(`^(?:${anyOf(L.map((l) => l.totalNet))}|sub-?total|total net)\\s*:?$`, 'i'),
   tax: /^(?:vat|tva|tax)\s*(\d+(?:[.,]\d+)?)\s*%/i,
+  subtotal: new RegExp(`^(?:${anyOf(L.map((l) => l.subtotal))})\\s*:?$`, 'i'),
+  discount: /^(?:discount|remise|rebate)\s*(?:(\d+(?:[.,]\d+)?)\s*%)?\s*:?$/i,
   signature: /signature/i,
 };
 /** A label that ends a block of free text, the lines table or the notes. */
 const isLabel = (t: string) =>
-  [RE.date, RE.validUntil, RE.dueDate, RE.terms, RE.bank, RE.notes, RE.subject, RE.totalDue, RE.total, RE.totalNet, RE.tax, RE.signature].some((r) => r.test(t));
+  [RE.date, RE.validUntil, RE.dueDate, RE.terms, RE.bank, RE.notes, RE.subject, RE.totalDue, RE.total, RE.totalNet, RE.tax, RE.subtotal, RE.discount, RE.signature].some((r) => r.test(t));
 
 // The lines table's columns, by their header words.
 type Col = 'image' | 'code' | 'description' | 'qty' | 'unitPrice' | 'total' | 'tax';
@@ -394,14 +399,27 @@ export function readBusinessPdf(pages: PdfTextPage[]): ReadDocument {
       prev = r;
     }
     out.client.name = block[0] ?? '';
-    out.client.address = block.slice(1);
+    // "Attn: Name, Role" and "Email: …" under the address are the contact.
+    const contact = { name: '', role: '', email: '' };
+    const address: string[] = [];
+    for (const line of block.slice(1)) {
+      const attn = line.match(new RegExp(`^(?:${anyOf(L.map((l) => l.attention))}|attention|for the attention of|fao)\\s*:?\\s*(.+)$`, 'i'));
+      const mail = line.match(RE.email) ?? line.match(/^(\S+@\S+\.\S+)$/);
+      if (attn) {
+        const at = attn[1].lastIndexOf(', ');
+        [contact.name, contact.role] = at < 0 ? [attn[1], ''] : [attn[1].slice(0, at), attn[1].slice(at + 2)];
+      } else if (mail) contact.email = mail[1].trim();
+      else address.push(line);
+    }
+    out.client.address = address;
+    if (contact.name || contact.email) out.client.contact = contact;
   }
 
   // The lines table, on every page it is on.
   const amounts: string[] = [];
   let cols: { col: Col; x: number }[] | null = null;
   let tableEnd: Row | null = null;
-  interface Part { code: string[]; desc: { text: string; y: number; h: number; w: number }[]; qty?: string; prices: string[]; unit: string[]; total?: string }
+  interface Part { code: string[]; desc: { text: string; y: number; h: number; w: number }[]; qty?: string; prices: string[]; unit: string[]; total?: string; percent?: string }
   let current: Part | null = null;
   const parts: Part[] = [];
   for (let i = 0; i < body.length; i++) {
@@ -445,13 +463,21 @@ export function readBusinessPdf(pages: PdfTextPage[]): ReadDocument {
     tableEnd = r;
     for (const s of cells.get('code') ?? []) current.code.push(s.text);
     for (const s of cells.get('description') ?? []) current.desc.push({ text: s.text, y: s.y, h: s.h, w: s.x2 - s.x });
-    for (const s of cells.get('unitPrice') ?? []) (isAmount(s.text) ? current.prices : current.unit).push(s.text);
+    for (const s of cells.get('unitPrice') ?? []) {
+      // "-10%" beside the struck price, and the price may share its segment.
+      const pct = s.text.match(/^-\s*(\d+(?:[.,]\d+)?)\s*%\s*(.*)$/);
+      if (pct) {
+        current.percent = pct[1];
+        if (pct[2] && isAmount(pct[2])) current.prices.push(pct[2]);
+      } else (isAmount(s.text) ? current.prices : current.unit).push(s.text);
+    }
     for (const s of cells.get('total') ?? []) if (!isAmount(s.text) || !startsLine) current.unit.push(s.text);
     amounts.push(...num('unitPrice'), ...num('total'));
   }
 
   // Totals and VAT.
   let statedTotal: string | undefined;
+  let discountText: [string | undefined, string] | undefined;
   let statedIsDue = false;
   for (const r of body) {
     const t = r.segs[0].text;
@@ -462,12 +488,20 @@ export function readBusinessPdf(pages: PdfTextPage[]): ReadDocument {
     // "Total due" / "Net à payer" over a plain "Total".
     if (value && RE.totalDue.test(t)) [statedTotal, statedIsDue] = [value, true];
     else if (value && RE.total.test(t) && !statedIsDue) statedTotal = value;
-    if (RE.total.test(t) || RE.totalDue.test(t) || RE.totalNet.test(t) || tax) used.add(r);
+    const off = t.match(RE.discount);
+    if (off && value) discountText = [off[1], value];
+    if (RE.total.test(t) || RE.totalDue.test(t) || RE.totalNet.test(t) || RE.subtotal.test(t) || off || tax) used.add(r);
   }
   out.numberStyle = numberStyleOf(amounts);
   out.currency = currencyOf(amounts.join(' ')) ?? currencyOf(all);
   const money = (t: string | undefined) => (t === undefined ? undefined : parseMoney(t.replace(/eur|gbp|usd|[()]/gi, ''), out.numberStyle) ?? undefined);
   out.statedTotal = money(statedTotal);
+  if (discountText) {
+    const [percent, amount] = discountText;
+    const minor = money(amount);
+    if (percent) out.discount = { percent: parseDecimal(percent) ?? 0 };
+    else if (minor) out.discount = { amount: Math.abs(minor) };
+  }
 
   // The column width a description wraps at: from its header to the next one.
   const descWidth = (() => {
@@ -492,11 +526,13 @@ export function readBusinessPdf(pages: PdfTextPage[]): ReadDocument {
     const prices = p.prices.map((x) => money(x)).filter((x): x is number => x !== undefined);
     const quantity = (p.qty && parseDecimal(p.qty)) || 1;
     const total = money(p.total);
-    // Two prices in the column: the struck-through list price above the real one.
-    let unitPrice = prices.length > 1 ? prices[prices.length - 1] : prices[0];
-    const listPrice = prices.length > 1 && prices[0] > prices[prices.length - 1] ? prices[0] : undefined;
+    // Two prices in the column: the struck-through catalogue price above what is charged.
+    let unitPrice = prices[0];
+    const charged = prices[prices.length - 1];
+    const discount: Discount | undefined =
+      prices.length > 1 && prices[0] > charged ? (p.percent ? { percent: parseDecimal(p.percent) ?? 0 } : { amount: prices[0] - charged }) : undefined;
     if (unitPrice === undefined && total !== undefined) unitPrice = Math.round(total / quantity);
-    out.lines.push({ code: p.code.join(' '), description, quantity, unit: p.unit.join(' '), unitPrice: unitPrice ?? 0, ...(listPrice ? { listPrice } : {}) });
+    out.lines.push({ code: p.code.join(' '), description, quantity, unit: p.unit.join(' '), unitPrice: unitPrice ?? 0, ...(discount ? { discount } : {}) });
   }
 
   // Notes: the "Notes:" box, and any free text between the subject and the table.

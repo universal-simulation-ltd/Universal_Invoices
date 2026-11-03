@@ -1,9 +1,9 @@
 import { computeTotals, formatMoney, wantsDecimals } from '@unisim/doc';
 import { arrange } from '../lib/arrange';
 import { blankLine, lineFromProduct } from '../lib/convert';
-import type { DocLine, Folder, InvoiceDoc, Product } from '../lib/types';
+import type { DocLine, Discount, Folder, InvoiceDoc, Product } from '../lib/types';
 import ImagePicker from './ImagePicker';
-import { DecimalInput, MoneyInput, btnGhost, btnIcon, inputCls, labelCls, selectBase } from './ui';
+import { DecimalInput, DiscountInput, MoneyInput, btnGhost, btnIcon, inputCls, labelCls, selectBase } from './ui';
 
 /**
  * The line table. Two rows per line rather than one wide one: the editor is
@@ -16,6 +16,7 @@ export default function LinesEditor({
   folders,
   defaultTaxRate,
   onChange,
+  onDiscount,
 }: {
   doc: InvoiceDoc;
   products: Product[];
@@ -23,11 +24,13 @@ export default function LinesEditor({
   folders: Folder[];
   defaultTaxRate: number;
   onChange: (lines: DocLine[]) => void;
+  /** The whole document's discount. */
+  onDiscount: (discount: Discount | undefined) => void;
 }) {
   const priced = doc.kind !== 'delivery-note';
   const taxed = doc.taxMode === 'standard';
-  const totals = computeTotals({ lines: doc.lines, taxMode: doc.taxMode });
-  const decimals = wantsDecimals({ lines: doc.lines, taxMode: doc.taxMode, decimals: undefined });
+  const totals = computeTotals(doc);
+  const decimals = wantsDecimals({ lines: doc.lines, taxMode: doc.taxMode, discount: doc.discount, decimals: undefined });
   const money = (v: number) => formatMoney(v, doc.currency, doc.numberStyle, decimals);
 
   const option = (p: Product) => (
@@ -96,13 +99,13 @@ export default function LinesEditor({
             </label>
             {priced && (
               <>
-                <label className="min-w-0" title="Optional. Printed struck through above the price when it is higher.">
-                  <span className={labelCls}>List price</span>
-                  <MoneyInput value={line.listPrice} onChange={(listPrice) => set(i, { listPrice })} style={doc.numberStyle} placeholder="—" ariaLabel="List price" />
-                </label>
                 <label className="min-w-0">
                   <span className={labelCls}>Price</span>
                   <MoneyInput value={line.unitPrice} onChange={(v) => set(i, { unitPrice: v ?? 0 })} style={doc.numberStyle} ariaLabel="Unit price" />
+                </label>
+                <label className="min-w-0" title="Off each unit: 10% or an amount. The PDF shows the price struck through above the discounted one.">
+                  <span className={labelCls}>Discount</span>
+                  <DiscountInput value={line.discount} onChange={(discount) => set(i, { discount })} style={doc.numberStyle} ariaLabel="Discount on this line" />
                 </label>
                 {taxed && (
                   <label className="min-w-0">
@@ -152,6 +155,26 @@ export default function LinesEditor({
 
       {priced && doc.lines.length > 0 && (
         <dl className="tabular ml-auto max-w-xs space-y-1 border-t border-slate-200 pt-3 text-sm dark:border-slate-800">
+          <div className="flex items-center justify-between gap-3 text-slate-600 dark:text-slate-400">
+            <dt>
+              <label htmlFor={`doc-discount-${doc.id}`}>Discount on the whole document</label>
+            </dt>
+            <dd className="w-28">
+              <DiscountInput value={doc.discount} onChange={onDiscount} style={doc.numberStyle} ariaLabel="Discount on the whole document" />
+            </dd>
+          </div>
+          {totals.discount > 0 && (
+            <>
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <dt>Subtotal</dt>
+                <dd>{money(totals.subtotal)}</dd>
+              </div>
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <dt>Discount{doc.discount && 'percent' in doc.discount ? ` ${doc.discount.percent}%` : ''}</dt>
+                <dd>{money(-totals.discount)}</dd>
+              </div>
+            </>
+          )}
           {taxed && totals.taxes.length > 0 && (
             <>
               <div className="flex justify-between text-slate-600 dark:text-slate-400">

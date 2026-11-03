@@ -76,7 +76,7 @@ describe('spreadsheet export and import', () => {
     const sheets = toWorkbook(realData());
     expect(sheets.map((s) => s.name)).toEqual(['Read me', 'Companies', 'Clients', 'Catalogue', 'Documents', 'Lines']);
     const cat = sheets[3];
-    const price = cat.rows[1][cat.rows[0].indexOf('Unit price')];
+    const price = cat.rows[1][cat.rows[0].indexOf('Catalogue price')];
     expect(price).toBe(realData().products[0].unitPrice / 100);
     const docs = sheets[4];
     expect(docs.rows[1][docs.rows[0].indexOf('Kind')]).toBe('Quote');
@@ -108,7 +108,7 @@ describe('spreadsheet export and import', () => {
     const data = realData();
     const sheets = toWorkbook(data);
     const cat = sheets[3];
-    cat.rows[1][cat.rows[0].indexOf('Unit price')] = '2 500,00';
+    cat.rows[1][cat.rows[0].indexOf('Catalogue price')] = '2 500,00';
     const plan = planImport(data, writeXlsx(sheets), 1, ids);
     expect(plan).toMatchObject({ added: 0, updated: 1 });
     expect(plan.write.products[0].unitPrice).toBe(250000);

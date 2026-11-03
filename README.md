@@ -36,8 +36,15 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   so does deleting the document.
 - **Numbering per company per kind**, from a pattern: `DEV-{YYYY}{MM}{DD}-{N:5}`
   → `DEV-20260727-00406`.
-- **Lines from your catalogue** (code, description, unit, price, a struck-through
-  list price for a discount, a picture), or typed in.
+- **Lines from your catalogue** (code, description, unit, catalogue price, a
+  picture), or typed in.
+- **Discounts** on a line (per unit) or on the whole document, typed as `10%`
+  or as an amount. A discounted line prints the catalogue price struck through
+  above the discounted one; a document discount shows as Subtotal → Discount,
+  and VAT is charged on what is left.
+- **Clients:** a customer name, and optionally an address, client number and
+  the contact person — name, role and email, printed "Attn: name, role" under
+  the address.
 - **Tax:** no VAT for an export, with the exemption wording printed; reverse
   charge; or VAT per line, totalled per rate.
 - **English or French documents**, independent of how numbers are written

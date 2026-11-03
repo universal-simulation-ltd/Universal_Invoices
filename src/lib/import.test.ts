@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { computeTotals } from '@unisim/doc';
-import { companyForImport, convertDocument, importedDocument, newDocument } from './convert';
+import { clientSnapshot, companyForImport, convertDocument, importedDocument, newDocument } from './convert';
 import { exampleData } from './example';
 import { journeyOf, nextStep, relinkAfterDelete, sourceFor, startOf, stepsOf } from './journey';
+import { changedBy, upgrade } from './legacy';
 import { counterAfter } from './numbering';
 import { renderPdf } from './pdf';
 import { textPages } from './pdfText';
@@ -19,17 +20,22 @@ async function readBack(doc: InvoiceDoc) {
 }
 
 describe('import PDF', () => {
-  const { company, doc } = exampleData('2026-10-29');
+  const { company, client, doc } = exampleData('2026-10-29');
 
   it('reads back a quote this app printed', async () => {
-    const read = await readBack({ ...doc, notes: 'Thanks for your business.\nSecond line' });
+    const read = await readBack({ ...doc, client: clientSnapshot(client), notes: 'Thanks for your business.\nSecond line' });
     expect(read).toMatchObject({
       kind: 'quote',
       number: doc.number,
       date: '2026-10-29',
       validUntil: doc.validUntil,
       subject: 'Training programme, spring term',
-      client: { name: 'Sample Customer GmbH', address: ['Musterstraße 1', '10115 Berlin', 'Germany'], reference: 'C-001' },
+      client: {
+        name: 'Sample Customer GmbH',
+        address: ['Musterstraße 1', '10115 Berlin', 'Germany'],
+        reference: 'C-001',
+        contact: { name: 'Sam Sample', role: 'Buyer', email: 'buyer@example.org' },
+      },
       issuer: { name: 'Example Studio Ltd', address: ['1 Example Street', 'Bristol BS1 1AA', 'United Kingdom'], contact: { name: 'Alex Example' } },
       notes: 'Thanks for your business.\nSecond line',
       paymentTerms: doc.paymentTerms,
@@ -38,8 +44,8 @@ describe('import PDF', () => {
       taxRate: 20,
       statedTotal: computeTotals(doc).gross,
     });
-    expect(read.lines.map(({ code, quantity, unit, unitPrice, listPrice }) => ({ code, quantity, unit, unitPrice, listPrice }))).toEqual(
-      doc.lines.map(({ code, quantity, unit, unitPrice, listPrice }) => ({ code, quantity, unit, unitPrice, listPrice })),
+    expect(read.lines.map(({ code, quantity, unit, unitPrice, discount }) => ({ code, quantity, unit, unitPrice, discount }))).toEqual(
+      doc.lines.map(({ code, quantity, unit, unitPrice, discount }) => ({ code, quantity, unit, unitPrice, discount })),
     );
   });
 
@@ -62,6 +68,13 @@ describe('import PDF', () => {
     expect(r.doc).toMatchObject({ kind: 'invoice', number: 'INV-20261029-00411', dueDate: '2026-11-28', imported: { checked: false } });
     expect(computeTotals(r.doc).gross).toBe(read.statedTotal);
     expect(r.company.numbering.invoice.next).toBe(412);
+  });
+
+  it('reads a whole-document discount and an amount off a line', async () => {
+    const read = await readBack({ ...doc, discount: { percent: 5 }, lines: [{ ...doc.lines[1], discount: { amount: 15000 } }] });
+    expect(read.discount).toEqual({ percent: 5 });
+    expect(read.lines[0]).toMatchObject({ unitPrice: 95000, discount: { amount: 15000 } });
+    expect(read.statedTotal).toBe(computeTotals({ ...doc, discount: { percent: 5 }, lines: [{ ...doc.lines[1], discount: { amount: 15000 } }] }).gross);
   });
 
   it('reads the date shapes people print', () => {
@@ -112,5 +125,19 @@ describe('journey', () => {
     const first = relinkAfterDelete([marked, q, inv], [est.id]);
     expect(first).toEqual([expect.objectContaining({ id: q.id, journey: marked.journey })]);
     expect(first[0].sourceId).toBeUndefined();
+  });
+});
+
+describe('list prices become discounts', () => {
+  const { product, doc } = exampleData('2026-10-29');
+  it('keeps every total to the cent', () => {
+    const old = { ...doc, lines: [{ ...doc.lines[1], unitPrice: 24000, listPrice: 30000 }, { ...doc.lines[2], listPrice: 100 }] } as unknown as InvoiceDoc;
+    const { documents, products } = upgrade({ documents: [old], products: [{ ...product, listPrice: 99 } as typeof product] });
+    expect(documents![0].lines[0]).toMatchObject({ unitPrice: 30000, discount: { amount: 6000 } });
+    expect('listPrice' in documents![0].lines[0]).toBe(false);
+    expect(documents![0].lines[1].discount).toBeUndefined();
+    expect(computeTotals(documents![0]).lines[0]).toBe(Math.round(doc.lines[1].quantity * 24000));
+    expect('listPrice' in products![0]).toBe(false);
+    expect(changedBy([doc], upgrade({ documents: [doc] }).documents!)).toEqual([]);
   });
 });

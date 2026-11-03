@@ -48,6 +48,7 @@ export function toBusinessDoc(doc: InvoiceDoc): BusinessDoc {
       name: doc.client.name,
       address: lines(doc.client.address),
       reference: doc.client.reference.trim() || undefined,
+      contact: doc.client.contact,
     },
     lines: doc.lines.map((l) => ({
       image: imageOf(l.image),
@@ -56,9 +57,10 @@ export function toBusinessDoc(doc: InvoiceDoc): BusinessDoc {
       quantity: l.quantity,
       unit: l.unit.trim() || undefined,
       unitPrice: l.unitPrice,
-      listPrice: l.listPrice,
+      discount: l.discount,
       taxRate: l.taxRate,
     })),
+    discount: doc.discount,
     notes: doc.notes.trim() || undefined,
     paymentTerms: doc.paymentTerms.trim() || undefined,
     signature: doc.signature,
@@ -71,7 +73,26 @@ export function issuerSnapshot(company: Company): InvoiceDoc['issuer'] {
 }
 
 export function clientSnapshot(client: Client): InvoiceDoc['client'] {
-  return { name: client.name, address: [...client.address], reference: client.reference };
+  const contact = { name: client.contact?.name ?? '', role: client.contact?.role ?? '', email: client.email };
+  return {
+    name: client.name,
+    address: [...client.address],
+    reference: client.reference,
+    ...(contact.name || contact.role || contact.email ? { contact } : {}),
+  };
+}
+
+/** A document's client, saved to Clients ("Save to clients"). */
+export function clientFromSnapshot(snapshot: InvoiceDoc['client'], id = uid()): Client {
+  const { contact, ...rest } = snapshot;
+  return {
+    id,
+    ...rest,
+    address: [...rest.address],
+    ...(contact?.name || contact?.role ? { contact: { name: contact.name, role: contact.role } } : {}),
+    email: contact?.email ?? '',
+    updatedAt: Date.now(),
+  };
 }
 
 /** Kind-specific dates: a validity for offers, a due date for invoices. */
@@ -141,7 +162,7 @@ export function convertDocument(
       ...fresh.doc,
       issuer: source.issuer,
       clientId: source.clientId,
-      client: { ...source.client, address: [...source.client.address] },
+      client: { ...source.client, address: [...source.client.address], ...(source.client.contact ? { contact: { ...source.client.contact } } : {}) },
       subject: source.subject,
       language: source.language,
       numberStyle: source.numberStyle,
@@ -149,6 +170,7 @@ export function convertDocument(
       taxMode: source.taxMode,
       taxNote: source.taxNote,
       lines: source.lines.map((l) => ({ ...l, id: uid() })),
+      ...(source.discount ? { discount: { ...source.discount } } : {}),
       notes: source.notes,
       paymentTerms: source.paymentTerms,
       sourceId: source.id,
@@ -162,7 +184,7 @@ export function duplicateDocument(source: InvoiceDoc, company: Company, date: st
   return { ...out, doc: { ...out.doc, sourceId: undefined } };
 }
 
-export function lineFromProduct(p: { id: string } & Omit<DocLine, 'id' | 'quantity' | 'productId'>): DocLine {
+export function lineFromProduct(p: { id: string } & Omit<DocLine, 'id' | 'quantity' | 'productId' | 'discount'>): DocLine {
   return {
     id: uid(),
     productId: p.id,
@@ -172,7 +194,6 @@ export function lineFromProduct(p: { id: string } & Omit<DocLine, 'id' | 'quanti
     quantity: 1,
     unit: p.unit,
     unitPrice: p.unitPrice,
-    listPrice: p.listPrice,
     taxRate: p.taxRate,
   };
 }
@@ -245,7 +266,7 @@ export function importedDocument(
     ...fresh.doc,
     status: 'sent',
     issuer: matched || !read.issuer.name ? fresh.doc.issuer : { ...read.issuer, address: [...read.issuer.address], bank: [...read.issuer.bank], footer: [...read.issuer.footer] },
-    client: { name: read.client.name, address: read.client.address, reference: read.client.reference },
+    client: { name: read.client.name, address: read.client.address, reference: read.client.reference, ...(read.client.contact ? { contact: read.client.contact } : {}) },
     number,
     validUntil: kind === 'invoice' || kind === 'delivery-note' ? undefined : (read.validUntil ?? fresh.doc.validUntil),
     dueDate: kind === 'invoice' ? (read.dueDate ?? fresh.doc.dueDate) : undefined,
@@ -256,6 +277,7 @@ export function importedDocument(
     taxMode,
     taxNote: taxMode === 'standard' ? '' : fresh.doc.taxNote,
     lines: read.lines.map((l) => ({ id: uid(), ...l, ...(read.taxRate ? { taxRate: read.taxRate } : {}) })),
+    ...(read.discount ? { discount: read.discount } : {}),
     notes: read.notes,
     paymentTerms: read.paymentTerms || fresh.doc.paymentTerms,
     ...(file ? { imported: { file, statedTotal: read.statedTotal, checked: false } } : {}),

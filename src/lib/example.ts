@@ -39,18 +39,17 @@ export function exampleData(today = todayIso()): { company: Company; client: Cli
     name: 'Sample Customer GmbH',
     address: ['Musterstraße 1', '10115 Berlin', 'Germany'],
     reference: 'C-001',
+    contact: { name: 'Sam Sample', role: 'Buyer' },
     email: 'buyer@example.org',
     updatedAt: now,
   };
-  // A list price above the price, so the example shows the struck-through discount.
   const product: Product = {
     id: uid(),
     example: true,
     code: 'LIC-12',
     description: 'Software licence, 12 months',
     unit: 'seat',
-    unitPrice: 24000,
-    listPrice: 30000,
+    unitPrice: 30000,
     taxRate: 20,
     updatedAt: now,
   };
@@ -60,7 +59,8 @@ export function exampleData(today = todayIso()): { company: Company; client: Cli
     example: true,
     subject: 'Training programme, spring term',
     lines: [
-      { ...lineFromProduct(product), quantity: 10 },
+      // A discount, so the example shows the catalogue price struck through.
+      { ...lineFromProduct(product), quantity: 10, discount: { percent: 20 } },
       { ...blankLine(20), code: 'WS-DAY', description: 'Workshop, one day on site', quantity: 2, unit: 'day', unitPrice: 95000 },
       { ...blankLine(20), description: 'Course materials, printed and bound', quantity: 12, unit: 'set', unitPrice: 1850 },
     ],

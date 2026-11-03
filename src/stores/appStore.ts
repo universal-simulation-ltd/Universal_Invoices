@@ -3,6 +3,7 @@ import { move, type Target } from '../lib/arrange';
 import { makeBackup, mergeDataset, parseBackup } from '../lib/backup';
 import { companyForImport, companyFromRead, convertDocument, duplicateDocument, importedDocument, newDocument, uid } from '../lib/convert';
 import { relinkAfterDelete } from '../lib/journey';
+import { changedBy, upgrade } from '../lib/legacy';
 import { shareHooks } from '../lib/shareHooks';
 import type { ReadDocument } from '../lib/readPdf';
 import { exampleData } from '../lib/example';
@@ -222,8 +223,11 @@ export const useAppStore = create<AppState>((set, get) => {
       }
       setScope(account);
       set({ loaded: false, scope: account, openId: null, companyPrompt: null });
-      const all = await loadAll();
+      const stored = await loadAll();
       if (getScope() !== account) return; // switched again meanwhile
+      // Rows from an older version, brought up to date and written back.
+      const all = upgrade(stored);
+      await putMany({ products: changedBy(stored.products, all.products), documents: changedBy(stored.documents, all.documents) });
       set({ ...all, loaded: true });
     },
     adoptSignedOut: async () => {
@@ -469,7 +473,7 @@ export const useAppStore = create<AppState>((set, get) => {
       return JSON.stringify(makeBackup({ companies, clients, products, folders, documents }), null, 2);
     },
     restore: async (text) => {
-      const incoming = parseBackup(text);
+      const incoming = upgrade(parseBackup(text));
       const { companies, clients, products, folders, documents } = get();
       const { write, added: n, updated } = mergeDataset({ companies, clients, products, folders, documents }, incoming);
       await putMany(write);
@@ -490,7 +494,9 @@ export const useAppStore = create<AppState>((set, get) => {
       }
     },
     setCloud: (patch) => set({ cloud: { ...get().cloud, ...patch } }),
-    applyCloud: async (merge) => {
+    applyCloud: async (incoming) => {
+      // Another device may still run a version from before discounts.
+      const merge = { ...incoming, write: upgrade(incoming.write) };
       const s = get();
       const next = {} as Pick<AppState, 'companies' | 'clients' | 'products' | 'folders' | 'documents'>;
       for (const table of ['companies', 'clients', 'products', 'folders', 'documents'] as const) {

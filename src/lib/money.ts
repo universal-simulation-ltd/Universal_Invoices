@@ -1,7 +1,7 @@
 // Typing money in. Amounts are stored as integer minor units; this is the
 // other direction — "1 234,56", "1,234.56", "€50", "50" → cents.
 
-import type { NumberStyle } from './types';
+import type { Discount, NumberStyle } from './types';
 
 /**
  * Parse what someone typed. The style decides which of ',' and '.' is the
@@ -45,4 +45,22 @@ export function parseDecimal(input: string): number | null {
   if (!cleaned) return null;
   const value = Number(cleaned);
   return Number.isFinite(value) ? value : null;
+}
+
+/** A discount as typed: "10%" (or "10 %") is a percentage, anything else an amount. Null when it is neither. */
+export function parseDiscount(input: string, style: NumberStyle): Discount | null {
+  const t = input.trim();
+  if (t.endsWith('%')) {
+    const percent = parseDecimal(t.slice(0, -1));
+    return percent === null || percent < 0 || percent > 100 ? null : { percent };
+  }
+  const amount = parseMoney(t, style);
+  return amount === null || amount < 0 ? null : { amount };
+}
+
+/** A discount back into its box: "10%" or "1234,50". */
+export function discountInputValue(discount: Discount | undefined, style: NumberStyle): string {
+  if (!discount) return '';
+  if ('percent' in discount) return `${style === 'fr' ? String(discount.percent).replace('.', ',') : discount.percent}%`;
+  return moneyInputValue(discount.amount, style);
 }

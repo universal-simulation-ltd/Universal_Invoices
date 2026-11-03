@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { moneyInputValue, parseDecimal, parseMoney } from '../lib/money';
-import type { NumberStyle } from '../lib/types';
+import { discountInputValue, moneyInputValue, parseDecimal, parseDiscount, parseMoney } from '../lib/money';
+import type { Discount, NumberStyle } from '../lib/types';
 
 // Shared class strings — one visual language across the app (PalsPayIn's).
 export const btnPrimary =
@@ -89,6 +89,50 @@ export function MoneyInput({
         const parsed = parseMoney(e.target.value, style);
         if (e.target.value.trim() === '') onChange(undefined);
         else if (parsed !== null) onChange(parsed);
+      }}
+    />
+  );
+}
+
+/**
+ * A discount: "10%" for a percentage, a plain number for an amount. Empty or
+ * 0 is none. Kept as typed while typing, like MoneyInput.
+ */
+export function DiscountInput({
+  value,
+  onChange,
+  style,
+  ariaLabel,
+  className = '',
+}: {
+  value: Discount | undefined;
+  onChange: (v: Discount | undefined) => void;
+  style: NumberStyle;
+  ariaLabel?: string;
+  className?: string;
+}) {
+  const [text, setText] = useState(discountInputValue(value, style));
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    if (!editing) setText(discountInputValue(value, style));
+  }, [value, style, editing]);
+  const invalid = text.trim() !== '' && parseDiscount(text, style) === null;
+  return (
+    <input
+      className={`${inputCls} tabular text-right ${invalid ? 'ring-2 ring-red-400' : ''} ${className}`}
+      inputMode="decimal"
+      aria-label={ariaLabel}
+      aria-invalid={invalid || undefined}
+      placeholder="—"
+      title="A percentage (10%) or an amount (50)"
+      value={text}
+      onFocus={() => setEditing(true)}
+      onBlur={() => setEditing(false)}
+      onChange={(e) => {
+        setText(e.target.value);
+        const parsed = parseDiscount(e.target.value, style);
+        if (e.target.value.trim() === '') onChange(undefined);
+        else if (parsed !== null) onChange(('percent' in parsed ? parsed.percent : parsed.amount) ? parsed : undefined);
       }}
     />
   );

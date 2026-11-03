@@ -30,6 +30,7 @@ import {
   type Client,
   type Company,
   type CurrencyCode,
+  type Discount,
   type DocLine,
   type DocStatus,
   type Folder,
@@ -76,6 +77,19 @@ const toMinor = (v: Cell) => {
   const n = toNumber(v);
   return n === undefined ? undefined : Math.round(n * 100);
 };
+
+/** A discount in a cell: "10%" a percentage, a number an amount (in units, like the prices). */
+const discountCell = (d: Discount | undefined): Cell => (!d ? null : 'percent' in d ? `${d.percent}%` : d.amount / 100);
+function toDiscount(v: Cell): Discount | undefined {
+  const t = str(v);
+  if (!t) return undefined;
+  if (t.endsWith('%')) {
+    const percent = toNumber(t.slice(0, -1).trim());
+    return percent ? { percent } : undefined;
+  }
+  const amount = toMinor(v);
+  return amount ? { amount } : undefined;
+}
 
 /** A date as text, or a date Excel turned into a serial number when someone retyped it. */
 export function toIsoDate(v: Cell): string | undefined {
@@ -147,6 +161,8 @@ const CLIENT_COLUMNS: Column<Client>[] = [
   { header: 'Name', width: 28, get: (c) => c.name },
   { header: 'Address', width: 30, get: (c) => lines(c.address) },
   { header: 'Reference', width: 14, get: (c) => c.reference },
+  { header: 'Contact name', width: 20, get: (c) => c.contact?.name ?? '' },
+  { header: 'Contact role', width: 16, get: (c) => c.contact?.role ?? '' },
   { header: 'Email', width: 24, get: (c) => c.email },
 ];
 
@@ -157,8 +173,7 @@ const PRODUCT_COLUMNS: Column<Product & { folder: string }>[] = [
   { header: 'Code', width: 14, get: (p) => p.code },
   { header: 'Description', width: 40, get: (p) => p.description },
   { header: 'Unit', width: 8, get: (p) => p.unit },
-  { header: 'Unit price', width: 12, get: (p) => money(p.unitPrice) },
-  { header: 'List price', width: 12, get: (p) => money(p.listPrice) },
+  { header: 'Catalogue price', width: 12, get: (p) => money(p.unitPrice) },
   { header: 'VAT rate %', width: 9, get: (p) => p.taxRate ?? null },
 ];
 
@@ -175,10 +190,14 @@ const DOCUMENT_COLUMNS: Column<InvoiceDoc>[] = [
   { header: 'Client name', width: 24, get: (d) => d.client.name },
   { header: 'Client address', width: 30, get: (d) => lines(d.client.address) },
   { header: 'Client reference', width: 14, get: (d) => d.client.reference },
+  { header: 'Client contact name', width: 20, get: (d) => d.client.contact?.name ?? '' },
+  { header: 'Client contact role', width: 16, get: (d) => d.client.contact?.role ?? '' },
+  { header: 'Client contact email', width: 24, get: (d) => d.client.contact?.email ?? '' },
   { header: 'Subject', width: 30, get: (d) => d.subject },
   { header: 'Language', width: 10, get: (d) => LANGUAGE_NAMES[d.language] },
   { header: 'Numbers look like', width: 12, get: (d) => LANGUAGE_NAMES[d.numberStyle] },
   { header: 'Currency', width: 9, get: (d) => d.currency },
+  { header: 'Discount', width: 10, get: (d) => discountCell(d.discount) },
   { header: 'Tax', width: 22, get: (d) => TAX_NAMES[d.taxMode] },
   { header: 'Exemption wording', width: 30, get: (d) => d.taxNote },
   { header: 'Payment terms', width: 20, get: (d) => d.paymentTerms },
@@ -210,7 +229,7 @@ const LINE_COLUMNS: Column<LineRow>[] = [
   { header: 'Quantity', width: 9, get: (r) => r.line.quantity },
   { header: 'Unit', width: 8, get: (r) => r.line.unit },
   { header: 'Unit price', width: 12, get: (r) => money(r.line.unitPrice) },
-  { header: 'List price', width: 12, get: (r) => money(r.line.listPrice) },
+  { header: 'Discount', width: 10, get: (r) => discountCell(r.line.discount) },
   { header: 'VAT rate %', width: 9, get: (r) => r.line.taxRate ?? null },
 ];
 
@@ -222,6 +241,7 @@ const README: Cell[][] = [
   ['To import: Universal Invoices → menu → Advanced → Import… and choose this file. It adds and updates; it never deletes.'],
   ['Keep a row’s ID and the import updates that row. Leave ID empty to add a new one.'],
   ['Prices are in the currency’s units (1234.50, not cents). Dates are written 2026-10-30.'],
+  ['A Discount is 10% for a percentage, or a plain number for an amount — per unit on the Lines sheet, off the whole document on Documents.'],
   ['Columns are found by their header, so you can reorder them — but keep the header names.'],
   ['On the Catalogue sheet, Folder is the folder an item sits in: type a new name to make that folder, or clear it to take the item out.'],
   ['Pictures (logos, catalogue images) are not in a spreadsheet. Use Advanced → Export a backup for a complete copy.'],
@@ -419,7 +439,10 @@ export function planImport(current: Dataset, bytes: Uint8Array, now = Date.now()
     const old = clients.get(id);
     const name = str(r('Name'));
     if (!name && !old) continue;
+    const contact = { name: str(r('Contact name')), role: str(r('Contact role')) };
     const next: Client = { ...old, id, name: name || old!.name, address: toLines(r('Address')), reference: str(r('Reference')), email: str(r('Email')), updatedAt: now };
+    if (contact.name || contact.role) next.contact = contact;
+    else delete next.contact;
     delete next.example;
     clients.set(id, settle('clients', old, next));
   }
@@ -450,14 +473,14 @@ export function planImport(current: Dataset, bytes: Uint8Array, now = Date.now()
       code: str(r('Code')),
       description,
       unit: str(r('Unit')),
-      unitPrice: toMinor(r('Unit price')) ?? 0,
-      listPrice: toMinor(r('List price')),
+      // "Unit price" in a sheet from before 2026-11-03.
+      unitPrice: toMinor(r('Catalogue price') ?? r('Unit price')) ?? 0,
       taxRate: toNumber(r('VAT rate %')),
       folderId,
       updatedAt: now,
     };
     delete next.example;
-    if (next.listPrice === undefined) delete next.listPrice;
+    delete (next as { listPrice?: number }).listPrice;
     if (next.taxRate === undefined) delete next.taxRate;
     if (next.folderId === undefined) delete next.folderId;
     products.set(id, settle('products', old, next));
@@ -533,10 +556,13 @@ export function planImport(current: Dataset, bytes: Uint8Array, now = Date.now()
             quantity: toNumber(lr('Quantity')) ?? 1,
             unit: str(lr('Unit')),
             unitPrice: toMinor(lr('Unit price')) ?? 0,
-            listPrice: toMinor(lr('List price')),
+            discount: toDiscount(lr('Discount')),
             taxRate: toNumber(lr('VAT rate %')),
           };
-          for (const k of ['productId', 'image', 'listPrice', 'taxRate'] as const) if (line[k] === undefined) delete line[k];
+          // A sheet from before 2026-11-03: a list price above the price is that price less a discount.
+          const list = toMinor(lr('List price'));
+          if (list !== undefined && list > line.unitPrice && !line.discount) Object.assign(line, { unitPrice: list, discount: { amount: list - line.unitPrice } });
+          for (const k of ['productId', 'image', 'discount', 'taxRate'] as const) if (line[k] === undefined) delete line[k];
           return line;
         })
       : old.lines;
@@ -575,6 +601,7 @@ export function planImport(current: Dataset, bytes: Uint8Array, now = Date.now()
       taxMode: oneOf(r('Tax'), TAX_NAMES, old?.taxMode ?? company.defaults.taxMode),
       taxNote: str(r('Exemption wording')),
       lines: docLines,
+      discount: toDiscount(r('Discount')),
       notes: str(r('Notes')),
       paymentTerms: str(r('Payment terms')),
       signature: toYesNo(r('Signature box')),
@@ -582,8 +609,12 @@ export function planImport(current: Dataset, bytes: Uint8Array, now = Date.now()
       createdAt: old?.createdAt ?? now,
       updatedAt: now,
     };
+    {
+      const contact = { name: str(r('Client contact name')), role: str(r('Client contact role')), email: str(r('Client contact email')) };
+      if (contact.name || contact.role || contact.email) next.client.contact = contact;
+    }
     delete next.example;
-    for (const k of ['clientId', 'validUntil', 'dueDate', 'signature', 'sourceId'] as const) if (next[k] === undefined) delete next[k];
+    for (const k of ['clientId', 'validUntil', 'dueDate', 'signature', 'sourceId', 'discount'] as const) if (next[k] === undefined) delete next[k];
     if (next.issuer.logo === undefined) delete next.issuer.logo;
     documents.set(id, settle('documents', old, next));
   }

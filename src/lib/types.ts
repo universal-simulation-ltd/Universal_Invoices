@@ -3,6 +3,7 @@
 // `convert.ts` is the one bridge between the two.
 
 import type {
+  BusinessDiscount,
   BusinessDocKind,
   BusinessDocLanguage,
   CurrencyCode,
@@ -11,6 +12,15 @@ import type {
 } from '@unisim/doc';
 
 export type { BusinessDocKind, BusinessDocLanguage, CurrencyCode, NumberStyle, TaxMode };
+
+/**
+ * A percentage, or an amount in minor units — per unit on a line, off the
+ * subtotal on a whole document (James, 2026-11-03: "remove list price,
+ * instead catalogue price, and then later discount by item or for the whole
+ * transaction"). Replaces the old struck-through list price: lib/legacy.ts
+ * turns one into the other.
+ */
+export type Discount = BusinessDiscount;
 
 /** A picture already converted to JPEG (white behind any transparency). */
 export interface StoredImage {
@@ -84,6 +94,9 @@ export interface Client {
   address: string[];
   /** Their number in your books ("No. client"). */
   reference: string;
+  /** The person documents are for — printed "Attn: name, role" under the address (James, 2026-11-03). */
+  contact?: { name: string; role: string };
+  /** The contact's email, printed under it. */
   email: string;
   updatedAt: number;
 }
@@ -99,10 +112,8 @@ export interface Product {
   code: string;
   description: string;
   unit: string;
-  /** Minor units. */
+  /** The catalogue price, minor units. Discounts are given on documents. */
   unitPrice: number;
-  /** Minor units; printed struck through when higher than `unitPrice`. */
-  listPrice?: number;
   taxRate?: number;
   image?: StoredImage;
   /** The catalogue folder it sits in (lib/arrange.ts); unknown or gone = the top level. */
@@ -135,9 +146,18 @@ export interface DocLine {
   description: string;
   quantity: number;
   unit: string;
+  /** The catalogue price, before this line's discount. Minor units. */
   unitPrice: number;
-  listPrice?: number;
+  /** Off each unit: the PDF prints the catalogue price struck through above the discounted one. */
+  discount?: Discount;
   taxRate?: number;
+}
+
+/** A document's copy of the client's contact person. */
+export interface ClientContact {
+  name: string;
+  role: string;
+  email: string;
 }
 
 /** A file kept with a document: an imported PDF, or a step done elsewhere. */
@@ -182,7 +202,7 @@ export interface InvoiceDoc {
   companyId: string;
   issuer: Omit<Company, 'id' | 'defaults' | 'numbering' | 'updatedAt'>;
   clientId?: string;
-  client: { name: string; address: string[]; reference: string };
+  client: { name: string; address: string[]; reference: string; contact?: ClientContact };
   number: string;
   date: string;
   validUntil?: string;
@@ -194,6 +214,8 @@ export interface InvoiceDoc {
   taxMode: TaxMode;
   taxNote: string;
   lines: DocLine[];
+  /** Off the whole document, after the lines' own discounts and before tax. */
+  discount?: Discount;
   notes: string;
   paymentTerms: string;
   /** Undefined = the kind's default (on for quotes, estimates, delivery notes). */

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { saveBlob } from '@unisim/media/save';
 import { computeTotals, formatMoney } from '@unisim/doc';
-import { clientSnapshot, issuerSnapshot, pdfFileName, uid } from '../lib/convert';
+import { clientFromSnapshot, clientSnapshot, issuerSnapshot, pdfFileName } from '../lib/convert';
 import { renderPdf } from '../lib/pdf';
 import { KIND_NAMES, KIND_ORDER, STATUS_NAMES, type DocStatus, type InvoiceDoc } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
@@ -207,9 +207,9 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                     type="button"
                     className={btnGhost}
                     onClick={() => {
-                      const id = uid();
-                      void saveClient({ id, ...doc.client, email: '', updatedAt: Date.now() });
-                      set({ clientId: id });
+                      const client = clientFromSnapshot(doc.client);
+                      void saveClient(client);
+                      set({ clientId: client.id });
                     }}
                   >
                     Save to clients
@@ -228,12 +228,30 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                 <LinesInput rows={3} value={doc.client.address} onChange={(address) => set({ client: { ...doc.client, address } })} />
               </Field>
             </div>
+            {/* Printed "Attn: name, role" and the email under the address. */}
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              {(['name', 'role', 'email'] as const).map((k) => (
+                <Field key={k} label={k === 'name' ? 'Contact name' : k === 'role' ? 'Role' : 'Email'}>
+                  <input
+                    className={inputCls}
+                    type={k === 'email' ? 'email' : 'text'}
+                    value={doc.client.contact?.[k] ?? ''}
+                    onChange={(e) => {
+                      const contact = { name: '', role: '', email: '', ...doc.client.contact, [k]: e.target.value };
+                      const client: InvoiceDoc['client'] = { ...doc.client, contact };
+                      if (!contact.name && !contact.role && !contact.email) delete client.contact;
+                      set({ client });
+                    }}
+                  />
+                </Field>
+              ))}
+            </div>
           </section>
 
           <section className={card}>
             <h2 className={sectionTitle}>Lines</h2>
             <div className="mt-3">
-              <LinesEditor doc={doc} products={products} folders={folders} defaultTaxRate={company?.defaults.taxRate ?? 20} onChange={(lines) => set({ lines })} />
+              <LinesEditor doc={doc} products={products} folders={folders} defaultTaxRate={company?.defaults.taxRate ?? 20} onChange={(lines) => set({ lines })} onDiscount={(discount) => set({ discount })} />
             </div>
           </section>
 

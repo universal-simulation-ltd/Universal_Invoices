@@ -19,28 +19,43 @@ export default function ClientsView() {
       onExample={() => void loadExample('clients')}
       onExport={(ids) => saveSpreadsheet('clients', ids)}
       onDuplicate={(c) => duplicateRow('clients', c.id)}
+      canSave={(c) => c.name.trim() !== ''}
       deleteWarning={(c) => `Delete ${c.name || 'this client'}? Documents already made for them keep their copy of the address.`}
       summary={(c) => (
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div className="min-w-0">
             <div className="font-medium text-slate-900 dark:text-slate-100">{c.name || 'Unnamed client'}</div>
             <div className="truncate text-sm text-slate-500 dark:text-slate-400">{c.address.filter(Boolean).join(', ')}</div>
+            {(c.contact?.name || c.email) && (
+              <div className="truncate text-xs text-slate-500 dark:text-slate-400">
+                {[c.contact?.name, c.contact?.role].filter(Boolean).join(', ')}
+                {c.contact?.name && c.email ? ' · ' : ''}
+                {c.email}
+              </div>
+            )}
           </div>
           {c.reference && <span className="text-xs text-slate-500">No. {c.reference}</span>}
         </div>
       )}
       form={(c, set) => (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Name">
-            <input className={inputCls} value={c.name} onChange={(e) => set({ name: e.target.value })} autoFocus />
+          <Field label="Customer name" hint="Required — the company or person the documents are addressed to.">
+            <input className={inputCls} value={c.name} required aria-required onChange={(e) => set({ name: e.target.value })} autoFocus />
           </Field>
-          <Field label="Client no." hint="Their number in your books — printed on documents.">
+          <Field label="Client no. (optional)" hint="Their number in your books — printed on documents.">
             <input className={inputCls} value={c.reference} onChange={(e) => set({ reference: e.target.value })} />
           </Field>
-          <Field label="Address" className="sm:col-span-2">
+          <Field label="Address (optional)" className="sm:col-span-2">
             <LinesInput rows={4} value={c.address} onChange={(address) => set({ address })} placeholder={'Street\nPostcode City\nCountry'} />
           </Field>
-          <Field label="Email">
+          {/* The person it is for, printed "Attn: name, role" under the address. */}
+          <Field label="Contact name (optional)">
+            <input className={inputCls} value={c.contact?.name ?? ''} onChange={(e) => set({ contact: { name: e.target.value, role: c.contact?.role ?? '' } })} />
+          </Field>
+          <Field label="Role (optional)">
+            <input className={inputCls} value={c.contact?.role ?? ''} placeholder="Buyer, Managing Director…" onChange={(e) => set({ contact: { name: c.contact?.name ?? '', role: e.target.value } })} />
+          </Field>
+          <Field label="Email (optional)">
             <input type="email" className={inputCls} value={c.email} onChange={(e) => set({ email: e.target.value })} />
           </Field>
         </div>

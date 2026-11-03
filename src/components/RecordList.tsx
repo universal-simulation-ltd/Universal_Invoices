@@ -24,6 +24,7 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
   summary,
   form,
   onSave,
+  canSave,
   onDelete,
   deleteWarning,
   onExample,
@@ -49,6 +50,8 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
   summary: (row: T) => ReactNode;
   form: (draft: T, set: (patch: Partial<T>) => void) => ReactNode;
   onSave: (row: T) => Promise<void>;
+  /** Whether the draft can be saved yet (a required field). Save is greyed out until it can. */
+  canSave?: (row: T) => boolean;
   onDelete: (ids: string[]) => Promise<void>;
   deleteWarning?: (row: T) => string;
   /** "See an example", offered while the list is empty. */
@@ -132,6 +135,7 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
         <button
           type="button"
           className={btnPrimary}
+          disabled={canSave ? !canSave(d) : false}
           onClick={async () => {
             await onSave(d);
             setDraft(null);

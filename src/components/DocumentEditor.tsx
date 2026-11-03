@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { saveBlob } from '@unisim/media/save';
-import { computeTotals, formatMoney } from '@unisim/doc';
+import { computeTotals, formatMoney, type BusinessSection } from '@unisim/doc';
 import { clientFromSnapshot, clientSnapshot, issuerSnapshot, pdfFileName } from '../lib/convert';
 import { renderPdf } from '../lib/pdf';
 import { KIND_NAMES, type InvoiceDoc } from '../lib/types';
@@ -8,8 +8,50 @@ import { useAppStore } from '../stores/appStore';
 import { openAttachment } from './attachments';
 import DocumentJourney from './DocumentJourney';
 import LinesEditor from './LinesEditor';
+import PdfPreview from './PdfPreview';
 import ShareLink from './ShareLink';
 import { ExampleChip, Field, LinesInput, btnDanger, btnGhost, btnPrimary, card, confirmAction, inputCls, sectionTitle, selectBase, selectCls } from './ui';
+
+/**
+ * The form's sections, the fields each one edits, and the parts of the PDF it
+ * fills in. Each section keeps its edits until its Save (James, 2026-11-03:
+ * "On each section have 'save' button after an edit which then refreshes the
+ * PDF as opposed to always refreshing the pdf every edit").
+ */
+type SectionId = 'from' | 'document' | 'client' | 'lines' | 'terms';
+const FIELDS: Record<SectionId, (keyof InvoiceDoc)[]> = {
+  from: ['issuer'],
+  document: ['number', 'date', 'validUntil', 'dueDate', 'subject'],
+  client: ['clientId', 'client'],
+  lines: ['lines', 'discount'],
+  terms: ['paymentTerms', 'notes', 'taxMode', 'currency', 'taxNote', 'language', 'numberStyle', 'signature'],
+};
+const PDF_PARTS: Record<SectionId, BusinessSection[]> = {
+  from: ['issuer'],
+  document: ['document'],
+  client: ['client'],
+  lines: ['lines', 'totals'],
+  terms: ['notes', 'terms', 'signature'],
+};
+const SECTIONS = Object.keys(FIELDS) as SectionId[];
+
+/** `doc` with `section`'s fields taken from `from`. Keys set to undefined are kept, so clearing a date saves. */
+function withFields(doc: InvoiceDoc, from: InvoiceDoc, sections: Iterable<SectionId>): InvoiceDoc {
+  const out = { ...doc } as Record<string, unknown>;
+  for (const s of sections) for (const k of FIELDS[s]) out[k] = from[k];
+  return out as unknown as InvoiceDoc;
+}
+
+// Which sections are folded away: a per-viewer convenience, so localStorage.
+const COLLAPSED = 'universal-invoices:collapsed-sections';
+function readCollapsed(): Set<SectionId> {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(COLLAPSED) ?? '[]');
+    return new Set(Array.isArray(v) ? (v.filter((x) => SECTIONS.includes(x)) as SectionId[]) : []);
+  } catch {
+    return new Set();
+  }
+}
 
 /**
  * One document: the form on the left, the real PDF on the right. Full width
@@ -21,40 +63,106 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
   const { companies, clients, products, folders, updateDocument, deleteMany, open, saveClient } = useAppStore();
   const company = companies.find((c) => c.id === doc.companyId);
   const [pane, setPane] = useState<'edit' | 'preview'>('edit');
-  const set = (patch: Partial<InvoiceDoc>) => updateDocument({ ...doc, ...patch });
 
-  // The preview re-renders a beat after typing stops: layout is fast, but a
-  // new blob URL per keystroke makes the browser's PDF viewer flicker.
-  const [preview, setPreview] = useState<{ url: string; pages: number; dropped: string[] } | null>(null);
-  const shownUrl = useRef<string | null>(null);
+  // The working copy, and the sections with edits not saved yet.
+  const [draft, setDraft] = useState(doc);
+  const [dirty, setDirty] = useState<Set<SectionId>>(new Set());
+  // The document changed underneath (a journey mark, another device): take
+  // it, keeping what is being edited.
   useEffect(() => {
-    const t = setTimeout(() => {
-      const r = renderPdf(doc);
-      const url = URL.createObjectURL(r.blob);
-      if (shownUrl.current) URL.revokeObjectURL(shownUrl.current);
-      shownUrl.current = url;
-      setPreview({ url, pages: r.pages, dropped: r.dropped });
-    }, 350);
-    return () => clearTimeout(t);
+    setDraft((d) => withFields(doc, d, dirty));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- on the saved document only
   }, [doc]);
+  const edit = (section: SectionId, patch: Partial<InvoiceDoc>) => {
+    setDraft((d) => ({ ...d, ...patch }));
+    setDirty((s) => new Set(s).add(section));
+  };
+  const save = (sections: Iterable<SectionId>) => {
+    const list = [...sections];
+    if (!list.length) return doc;
+    const next = withFields(doc, draft, list);
+    updateDocument(next);
+    setDirty((s) => new Set([...s].filter((x) => !list.includes(x))));
+    return next;
+  };
+  const cancel = (section: SectionId) => {
+    setDraft((d) => withFields(d, doc, [section]));
+    setDirty((s) => new Set([...s].filter((x) => x !== section)));
+  };
+
+  // Leaving the document saves what is open — nothing typed is lost. Not a
+  // deleted one: saving it would bring it back.
+  const latest = useRef({ draft, dirty, doc });
+  latest.current = { draft, dirty, doc };
   useEffect(
     () => () => {
-      if (shownUrl.current) URL.revokeObjectURL(shownUrl.current);
+      const { draft: d, dirty: ds, doc: saved } = latest.current;
+      if (ds.size && useAppStore.getState().documents.some((x) => x.id === saved.id)) {
+        useAppStore.getState().updateDocument(withFields(saved, d, ds));
+      }
     },
     [],
   );
+  useEffect(() => {
+    if (!dirty.size) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty.size]);
+
+  // Cmd/Ctrl+S saves every section.
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      save(dirty);
+    }
+  };
+
+  // The section being worked in — hovered, else the one with the cursor — is
+  // marked on the preview.
+  const [hovered, setHovered] = useState<SectionId | null>(null);
+  const [focused, setFocused] = useState<SectionId | null>(null);
+  const pointed = hovered ?? focused;
+
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const toggle = useCallback((id: SectionId) => {
+    setCollapsed((c) => {
+      const next = new Set(c);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        localStorage.setItem(COLLAPSED, JSON.stringify([...next]));
+      } catch {
+        /* folded for this visit only */
+      }
+      return next;
+    });
+  }, []);
 
   // Saving the PDF also offers its link (ShareLink): private until shared.
+  // Unsaved edits are saved first — the download is what the form says.
   const [shareSignal, setShareSignal] = useState(0);
   const download = async () => {
-    await saveBlob(renderPdf(doc).blob, pdfFileName(doc));
+    const saved = save(dirty);
+    await saveBlob(renderPdf(saved).blob, pdfFileName(saved));
     setShareSignal((n) => n + 1);
   };
 
-  const dated = doc.kind === 'invoice' ? 'dueDate' : doc.kind === 'delivery-note' ? null : 'validUntil';
+  const d = draft;
+  const dated = d.kind === 'invoice' ? 'dueDate' : d.kind === 'delivery-note' ? null : 'validUntil';
+  const section = (id: SectionId) => ({
+    id,
+    dirty: dirty.has(id),
+    collapsed: collapsed.has(id),
+    onToggle: () => toggle(id),
+    onSave: () => save([id]),
+    onCancel: () => cancel(id),
+    onPoint: (on: boolean) => setHovered(on ? id : null),
+    onFocusIn: (on: boolean) => setFocused((f) => (on ? id : f === id ? null : f)),
+  });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" onKeyDown={onKeyDown}>
       {/* The action bar. */}
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className={btnGhost} onClick={() => open(null)}>
@@ -85,7 +193,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
         </button>
       </div>
 
-      {doc.imported && <ImportedCheck doc={doc} onChecked={() => set({ imported: { ...doc.imported!, checked: true } })} />}
+      {doc.imported && <ImportedCheck doc={doc} onChecked={() => updateDocument({ ...doc, imported: { ...doc.imported!, checked: true } })} />}
 
       <DocumentJourney doc={doc} />
 
@@ -110,57 +218,60 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
           {/* From, first (James, 2026-10-30): who the document is from decides
               everything under it. Not a choice here (2026-10-31): a document
               comes from the active company, picked in Your companies. */}
-          <section className={card}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <h2 className={sectionTitle}>From</h2>
-                <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-200">{doc.issuer.name || 'No company'}</p>
-              </div>
-              {company && (
+          <Section
+            {...section('from')}
+            title="From"
+            summary={d.issuer.name || 'No company'}
+            actions={
+              company && (
                 <button
                   type="button"
                   className={btnGhost}
                   title="This document keeps the company details it was made with. Take the current ones instead."
-                  onClick={() => set({ issuer: issuerSnapshot(company) })}
+                  onClick={() => edit('from', { issuer: issuerSnapshot(company) })}
                 >
                   Use current company details
                 </button>
-              )}
-            </div>
-          </section>
+              )
+            }
+          >
+            <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{d.issuer.name || 'No company'}</p>
+            {d.issuer.address.length > 0 && <p className="text-sm text-slate-500 dark:text-slate-400">{d.issuer.address.filter(Boolean).join(', ')}</p>}
+          </Section>
 
-          <section className={card}>
-            <h2 className={sectionTitle}>Document</h2>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <Section {...section('document')} title="Document" summary={[d.number, d.subject].filter(Boolean).join(' · ')}>
+            <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Number">
-                <input className={inputCls} value={doc.number} onChange={(e) => set({ number: e.target.value })} />
+                <input className={inputCls} value={d.number} onChange={(e) => edit('document', { number: e.target.value })} />
               </Field>
               <Field label="Date">
-                <input type="date" className={inputCls} value={doc.date} onChange={(e) => set({ date: e.target.value })} />
+                <input type="date" className={inputCls} value={d.date} onChange={(e) => edit('document', { date: e.target.value })} />
               </Field>
               {dated && (
                 <Field label={dated === 'dueDate' ? 'Due date' : 'Valid until'}>
-                  <input type="date" className={inputCls} value={doc[dated] ?? ''} onChange={(e) => set({ [dated]: e.target.value || undefined })} />
+                  <input type="date" className={inputCls} value={d[dated] ?? ''} onChange={(e) => edit('document', { [dated]: e.target.value || undefined })} />
                 </Field>
               )}
               <Field label="Subject" className={dated ? '' : 'sm:col-span-2'}>
-                <input className={inputCls} value={doc.subject} placeholder="Quote for…" onChange={(e) => set({ subject: e.target.value })} />
+                <input className={inputCls} value={d.subject} placeholder="Quote for…" onChange={(e) => edit('document', { subject: e.target.value })} />
               </Field>
             </div>
-          </section>
+          </Section>
 
-          <section className={card}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className={sectionTitle}>Client</h2>
-              <div className="flex flex-wrap gap-2">
+          <Section
+            {...section('client')}
+            title="Client"
+            summary={d.client.name || 'No client yet'}
+            actions={
+              <>
                 {clients.length > 0 && (
                   <select
                     className={selectBase}
-                    value={doc.clientId ?? ''}
+                    value={d.clientId ?? ''}
                     aria-label="Choose a client"
                     onChange={(e) => {
                       const c = clients.find((x) => x.id === e.target.value);
-                      if (c) set({ clientId: c.id, client: clientSnapshot(c) });
+                      if (c) edit('client', { clientId: c.id, client: clientSnapshot(c) });
                     }}
                   >
                     <option value="">Choose a saved client…</option>
@@ -173,30 +284,31 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                       ))}
                   </select>
                 )}
-                {!doc.clientId && doc.client.name.trim() && (
+                {!d.clientId && d.client.name.trim() && (
                   <button
                     type="button"
                     className={btnGhost}
                     onClick={() => {
-                      const client = clientFromSnapshot(doc.client);
+                      const client = clientFromSnapshot(d.client);
                       void saveClient(client);
-                      set({ clientId: client.id });
+                      edit('client', { clientId: client.id });
                     }}
                   >
                     Save to clients
                   </button>
                 )}
-              </div>
-            </div>
-            <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+              </>
+            }
+          >
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
               <Field label="Name">
-                <input className={inputCls} value={doc.client.name} onChange={(e) => set({ client: { ...doc.client, name: e.target.value } })} />
+                <input className={inputCls} value={d.client.name} onChange={(e) => edit('client', { client: { ...d.client, name: e.target.value } })} />
               </Field>
               <Field label="Client no.">
-                <input className={inputCls} value={doc.client.reference} onChange={(e) => set({ client: { ...doc.client, reference: e.target.value } })} />
+                <input className={inputCls} value={d.client.reference} onChange={(e) => edit('client', { client: { ...d.client, reference: e.target.value } })} />
               </Field>
               <Field label="Address" className="sm:col-span-2">
-                <LinesInput rows={3} value={doc.client.address} onChange={(address) => set({ client: { ...doc.client, address } })} />
+                <LinesInput rows={3} value={d.client.address} onChange={(address) => edit('client', { client: { ...d.client, address } })} />
               </Field>
             </div>
             {/* Printed "Attn: name, role" and the email under the address. */}
@@ -206,68 +318,75 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                   <input
                     className={inputCls}
                     type={k === 'email' ? 'email' : 'text'}
-                    value={doc.client.contact?.[k] ?? ''}
+                    value={d.client.contact?.[k] ?? ''}
                     onChange={(e) => {
-                      const contact = { name: '', role: '', email: '', ...doc.client.contact, [k]: e.target.value };
-                      const client: InvoiceDoc['client'] = { ...doc.client, contact };
+                      const contact = { name: '', role: '', email: '', ...d.client.contact, [k]: e.target.value };
+                      const client: InvoiceDoc['client'] = { ...d.client, contact };
                       if (!contact.name && !contact.role && !contact.email) delete client.contact;
-                      set({ client });
+                      edit('client', { client });
                     }}
                   />
                 </Field>
               ))}
             </div>
-          </section>
+          </Section>
 
-          <section className={card}>
-            <h2 className={sectionTitle}>Lines</h2>
-            <div className="mt-3">
-              <LinesEditor doc={doc} products={products} folders={folders} defaultTaxRate={company?.defaults.taxRate ?? 20} onChange={(lines) => set({ lines })} onDiscount={(discount) => set({ discount })} />
-            </div>
-          </section>
+          <Section
+            {...section('lines')}
+            title="Lines"
+            summary={`${d.lines.length} line${d.lines.length === 1 ? '' : 's'}${d.kind === 'delivery-note' ? '' : ` · ${formatMoney(computeTotals(d).gross, d.currency, d.numberStyle, true)}`}`}
+          >
+            <LinesEditor
+              doc={d}
+              products={products}
+              folders={folders}
+              defaultTaxRate={company?.defaults.taxRate ?? 20}
+              onChange={(lines) => edit('lines', { lines })}
+              onDiscount={(discount) => edit('lines', { discount })}
+            />
+          </Section>
 
-          <section className={card}>
-            <h2 className={sectionTitle}>Terms and notes</h2>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {doc.kind !== 'delivery-note' && (
+          <Section {...section('terms')} title="Terms and notes" summary={d.paymentTerms || d.notes.split('\n')[0]}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {d.kind !== 'delivery-note' && (
                 <Field label="Payment terms" className="sm:col-span-2">
-                  <input className={inputCls} value={doc.paymentTerms} onChange={(e) => set({ paymentTerms: e.target.value })} />
+                  <input className={inputCls} value={d.paymentTerms} onChange={(e) => edit('terms', { paymentTerms: e.target.value })} />
                 </Field>
               )}
               <Field label="Notes" className="sm:col-span-2">
-                <textarea className={`${inputCls} resize-y`} rows={3} value={doc.notes} onChange={(e) => set({ notes: e.target.value })} />
+                <textarea className={`${inputCls} resize-y`} rows={3} value={d.notes} onChange={(e) => edit('terms', { notes: e.target.value })} />
               </Field>
-              {doc.kind !== 'delivery-note' && (
+              {d.kind !== 'delivery-note' && (
                 <>
                   <Field label="Tax">
-                    <select className={selectCls} value={doc.taxMode} onChange={(e) => set({ taxMode: e.target.value as InvoiceDoc['taxMode'] })}>
+                    <select className={selectCls} value={d.taxMode} onChange={(e) => edit('terms', { taxMode: e.target.value as InvoiceDoc['taxMode'] })}>
                       <option value="export-exempt">No VAT — export</option>
                       <option value="reverse-charge">No VAT — reverse charge</option>
                       <option value="standard">VAT on each line</option>
                     </select>
                   </Field>
                   <Field label="Currency">
-                    <select className={selectCls} value={doc.currency} onChange={(e) => set({ currency: e.target.value as InvoiceDoc['currency'] })}>
+                    <select className={selectCls} value={d.currency} onChange={(e) => edit('terms', { currency: e.target.value as InvoiceDoc['currency'] })}>
                       <option value="EUR">Euro (€)</option>
                       <option value="GBP">Pound sterling (£)</option>
                       <option value="USD">US dollar ($)</option>
                     </select>
                   </Field>
-                  {doc.taxMode !== 'standard' && (
+                  {d.taxMode !== 'standard' && (
                     <Field label="Exemption wording" className="sm:col-span-2" hint="Printed under the totals.">
-                      <input className={inputCls} value={doc.taxNote} onChange={(e) => set({ taxNote: e.target.value })} />
+                      <input className={inputCls} value={d.taxNote} onChange={(e) => edit('terms', { taxNote: e.target.value })} />
                     </Field>
                   )}
                 </>
               )}
               <Field label="Document language">
-                <select className={selectCls} value={doc.language} onChange={(e) => set({ language: e.target.value as InvoiceDoc['language'] })}>
+                <select className={selectCls} value={d.language} onChange={(e) => edit('terms', { language: e.target.value as InvoiceDoc['language'] })}>
                   <option value="en">English</option>
                   <option value="fr">Français</option>
                 </select>
               </Field>
               <Field label="Numbers look like">
-                <select className={selectCls} value={doc.numberStyle} onChange={(e) => set({ numberStyle: e.target.value as InvoiceDoc['numberStyle'] })}>
+                <select className={selectCls} value={d.numberStyle} onChange={(e) => edit('terms', { numberStyle: e.target.value as InvoiceDoc['numberStyle'] })}>
                   <option value="fr">163 000,00 €</option>
                   <option value="en">€163,000.00</option>
                 </select>
@@ -276,42 +395,96 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                 <input
                   type="checkbox"
                   className="h-4 w-4 accent-orange-600"
-                  checked={doc.signature ?? (doc.kind === 'quote' || doc.kind === 'estimate' || doc.kind === 'delivery-note')}
-                  onChange={(e) => set({ signature: e.target.checked })}
+                  checked={d.signature ?? (d.kind === 'quote' || d.kind === 'estimate' || d.kind === 'delivery-note')}
+                  onChange={(e) => edit('terms', { signature: e.target.checked })}
                 />
                 Leave space for a signature
               </label>
             </div>
-          </section>
-
+          </Section>
         </div>
 
         <div className={`${pane === 'preview' ? '' : 'hidden lg:block'}`}>
           <div className="lg:sticky lg:top-4">
-            {preview ? (
-              <>
-                <iframe
-                  title="PDF preview"
-                  // Fit the page to the pane's width; the viewers otherwise open at 100% and crop it.
-                  src={`${preview.url}#view=FitH`} className="h-[75vh] w-full rounded-2xl border border-slate-200 bg-white lg:h-[calc(100vh-7rem)] dark:border-slate-800" />
-                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  {preview.pages} page{preview.pages === 1 ? '' : 's'} · made in this browser, nothing uploaded
-                  {preview.dropped.length > 0 && (
-                    <span className="ml-2 font-medium text-red-700 dark:text-red-400">
-                      These characters cannot be printed and show as “?”: {preview.dropped.join(' ')}
-                    </span>
-                  )}
-                </p>
-              </>
-            ) : (
-              <div className="flex h-[60vh] items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm text-slate-400 dark:border-slate-800 dark:bg-slate-900">
-                Preparing the preview…
-              </div>
+            <PdfPreview doc={doc} highlight={pointed ? PDF_PARTS[pointed] : null} />
+            {dirty.size > 0 && (
+              <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                Unsaved changes are not in the preview yet — Save the section (or press {navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl'}+S).
+              </p>
             )}
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * A form section: a header that folds it away (with a one-line summary while
+ * folded), its own Save and Cancel once something in it has changed, and the
+ * hover / focus that marks its part of the preview.
+ */
+function Section({
+  title,
+  summary,
+  actions,
+  children,
+  dirty,
+  collapsed,
+  onToggle,
+  onSave,
+  onCancel,
+  onPoint,
+  onFocusIn,
+}: {
+  id: SectionId;
+  title: string;
+  summary: string;
+  actions?: ReactNode;
+  children: ReactNode;
+  dirty: boolean;
+  collapsed: boolean;
+  onToggle: () => void;
+  onSave: () => void;
+  onCancel: () => void;
+  onPoint: (on: boolean) => void;
+  onFocusIn: (on: boolean) => void;
+}) {
+  const body = useId();
+  return (
+    <section
+      className={`${card} transition-shadow ${dirty ? 'ring-2 ring-amber-300 dark:ring-amber-800' : ''}`}
+      onMouseEnter={() => onPoint(true)}
+      onMouseLeave={() => onPoint(false)}
+      onFocus={() => onFocusIn(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onFocusIn(false);
+      }}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" aria-expanded={!collapsed} aria-controls={body} onClick={onToggle} className="-ml-1 mr-auto flex min-w-0 items-center gap-2 rounded-md px-1 py-0.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800">
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden className={`shrink-0 text-slate-400 transition-transform ${collapsed ? '-rotate-90' : ''}`}>
+            <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <h2 className={sectionTitle}>{title}</h2>
+          {collapsed && summary && <span className="truncate text-sm text-slate-500 dark:text-slate-400">{summary}</span>}
+        </button>
+        {!collapsed && actions}
+        {dirty && (
+          <>
+            <button type="button" className={`${btnGhost} py-1.5`} onClick={onCancel}>
+              Cancel
+            </button>
+            <button type="button" className={`${btnPrimary} py-1.5`} onClick={onSave}>
+              Save
+            </button>
+          </>
+        )}
+      </div>
+      <div id={body} hidden={collapsed} className="mt-3">
+        {children}
+      </div>
+    </section>
   );
 }
 

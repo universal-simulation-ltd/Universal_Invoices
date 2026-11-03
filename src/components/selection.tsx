@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { btnDanger, btnGhost, checkboxCls, confirmAction } from './ui';
+import { btnDanger, btnGhost, checkboxCls, confirmAction, plural } from './ui';
 
 /**
  * Select several rows of a list, then act on them together — the suite rule
@@ -78,7 +78,7 @@ export function SelectionBar({
             type="button"
             className={`${btnDanger} py-1.5`}
             onClick={async () => {
-              if (!confirmAction(`Delete ${n} ${n === 1 ? noun : `${noun}s`}? This cannot be undone.`)) return;
+              if (!confirmAction(`Delete ${n} ${n === 1 ? noun : plural(noun)}? This cannot be undone.`)) return;
               await onDelete([...sel.selected]);
               sel.clear();
             }}

@@ -223,3 +223,6 @@ export const liveBorder = 'border-sky-300 ring-1 ring-sky-200 dark:border-sky-80
 /** A form field the hub fills in: read-only here, tinted to say so. */
 export const liveInputCls =
   'w-full min-w-0 cursor-default rounded-lg border border-sky-200 bg-sky-50/80 px-3 py-2 text-sm text-slate-800 focus:outline-none dark:border-sky-900/70 dark:bg-sky-950/30 dark:text-slate-200';
+
+/** "company" → "companies", "client" → "clients": the plural every list says. */
+export const plural = (noun: string) => (/[^aeiou]y$/.test(noun) ? `${noun.slice(0, -1)}ies` : `${noun}s`);

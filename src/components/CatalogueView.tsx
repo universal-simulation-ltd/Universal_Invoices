@@ -310,7 +310,13 @@ export default function CatalogueView() {
             {p.image ? (
               <img src={p.image.dataUrl} alt="" className="h-10 w-10 shrink-0 rounded-md object-contain" />
             ) : (
-              <span className="h-10 w-10 shrink-0 rounded-md bg-slate-100 dark:bg-slate-800" />
+              // No picture yet: a quiet box glyph, so the row reads as finished rather than broken.
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500" aria-hidden>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 8 12 3 3 8v8l9 5 9-5V8Z" />
+                  <path d="m3 8 9 5 9-5M12 13v8" />
+                </svg>
+              </span>
             )}
             <div className="min-w-0 flex-1">
               <div className="font-medium text-slate-900 dark:text-slate-100">{p.code || 'No code'}</div>

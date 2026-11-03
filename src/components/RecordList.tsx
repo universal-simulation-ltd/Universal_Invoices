@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Target } from '../lib/arrange';
 import { DragHandle, DropLine, useArrangeDrag } from './arrange';
 import { SelectCheckbox, SelectionBar, useSelection } from './selection';
-import { EmptyState, ExampleChip, SyncedChip, btnDanger, btnGhost, btnPrimary, card, confirmAction, exampleBorder, liveBorder } from './ui';
+import { EmptyState, ExampleChip, SyncedChip, btnDanger, plural, btnGhost, btnPrimary, card, confirmAction, exampleBorder, liveBorder } from './ui';
 
 /**
  * The shape the Clients, Catalogue and Companies tabs share: a list, one row
@@ -112,7 +112,7 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
   const carried = (id: string) => drag !== null && (drag.id === id || (carrying > 1 && sel.has(id)));
   const lineAt = (parent: string | null, before: string | null) =>
     drag?.target && drag.target.parent === parent && drag.target.before === before ? (
-      <DropLine label={carrying > 1 ? `${carrying} ${noun}s` : undefined} />
+      <DropLine label={carrying > 1 ? `${carrying} ${plural(noun)}` : undefined} />
     ) : null;
 
   useEffect(() => {
@@ -131,7 +131,8 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
         </p>
       )}
       {form(d, (patch) => setDraft({ ...d, ...patch }))}
-      <div className="mt-4 flex flex-wrap gap-2">
+      {/* Pinned to the foot of the screen while a long form (a company) scrolls past. */}
+      <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-4 flex flex-wrap gap-2 rounded-b-2xl border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-5 sm:-mb-5 sm:px-5 dark:border-slate-800 dark:bg-slate-900/95">
         <button
           type="button"
           className={btnPrimary}
@@ -245,7 +246,7 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
       {adding}
       {rows.length === 0 && !draft && !adding && (
         <EmptyState
-          title={`No ${noun}s yet`}
+          title={`No ${plural(noun)} yet`}
           action={
             onExample && (
               <button type="button" className={btnGhost} onClick={onExample}>
@@ -313,7 +314,7 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
                           data-id={node.id}
                           className={`rounded-2xl border-2 border-dashed px-4 py-3 text-sm text-slate-500 dark:text-slate-400 ${into ? 'border-orange-400' : 'border-slate-200 dark:border-slate-800'}`}
                         >
-                          {into && carrying > 1 ? `Drop ${carrying} ${noun}s here.` : `Empty. Drag ${noun}s here by their handle.`}
+                          {into && carrying > 1 ? `Drop ${carrying} ${plural(noun)} here.` : `Empty. Drag ${plural(noun)} here by their handle.`}
                         </div>
                       )}
                     </div>

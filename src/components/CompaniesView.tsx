@@ -52,6 +52,7 @@ export default function CompaniesView() {
       make={blankCompany}
       emptyText="The company your documents come from. Add more than one if you trade under more than one name."
       onSave={saveCompany}
+      canSave={(c) => c.name.trim() !== ''}
       onDelete={(ids) => deleteMany('companies', ids)}
       onExample={() => void loadExample('companies')}
       onExport={(ids) => saveSpreadsheet('companies', ids)}
@@ -123,7 +124,7 @@ export default function CompaniesView() {
               </div>
             )}
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Company name" hint="Also the running header on every page.">
+              <Field label="Company name" hint="Required. Also the running header on every page.">
                 {text(lf.has('name'), c.name, (name) => set({ name }), true)}
               </Field>
               <div>
@@ -150,11 +151,12 @@ export default function CompaniesView() {
                   {text(lf.has('email'), c.contact.email, (email) => set({ contact: { ...c.contact, email } }))}
                 </Field>
               </div>
+              <h3 className={`${sectionTitle} pt-3 sm:col-span-2`}>Bank and legal</h3>
+              {/* The main account, and more to pick per document in its From section — kept together. */}
+              <div className="space-y-3">
               <Field label="Bank details" hint="One line each: bank, BIC, IBAN. The account documents use unless you pick another.">
                 <LinesInput rows={3} value={c.bank} onChange={(bank) => set({ bank })} live={lf.has('bank')} />
               </Field>
-              {/* More accounts, picked per document in its From section. */}
-              <div className="space-y-3">
                 {(c.moreBanks ?? []).map((b, i) => {
                   const update = (patch: Partial<BankAccount>) => set({ moreBanks: (c.moreBanks ?? []).map((x, n) => (n === i ? { ...x, ...patch } : x)) });
                   return (

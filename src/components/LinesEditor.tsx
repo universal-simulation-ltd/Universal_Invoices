@@ -163,10 +163,12 @@ export default function LinesEditor({
         <dl className="tabular ml-auto max-w-xs space-y-1 border-t border-slate-200 pt-3 text-sm dark:border-slate-800">
           <div className="flex items-center justify-between gap-3 text-slate-600 dark:text-slate-400">
             <dt>
-              <label htmlFor={`doc-discount-${doc.id}`}>Discount on the whole document</label>
+              <label htmlFor={`doc-discount-${doc.id}`} title="Off the whole document, before VAT: 10% or an amount">
+                Overall discount
+              </label>
             </dt>
             <dd className="w-28">
-              <DiscountInput value={doc.discount} onChange={onDiscount} style={doc.numberStyle} ariaLabel="Discount on the whole document" />
+              <DiscountInput value={doc.discount} onChange={onDiscount} style={doc.numberStyle} ariaLabel="Overall discount" />
             </dd>
           </div>
           {totals.discount > 0 && (

@@ -159,7 +159,7 @@ export default function DocumentJourney({ doc }: { doc: InvoiceDoc }) {
               Make the {KIND_NAMES[step.kind].toLowerCase()} here
             </button>
             <button type="button" className={btnGhost} onClick={() => upload.current?.click()}>
-              Upload one…
+              Upload a copy…
             </button>
             <button type="button" className={btnGhost} onClick={() => markStep(journey.root.id, step.kind, { state: 'done', at: Date.now() })}>
               Done elsewhere

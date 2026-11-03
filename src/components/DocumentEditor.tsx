@@ -8,10 +8,11 @@ import { useAppStore } from '../stores/appStore';
 import { fileSize, openAttachment } from './attachments';
 import DocumentJourney from './DocumentJourney';
 import LinesEditor from './LinesEditor';
+import MoreMenu, { menuItem } from './MoreMenu';
 import PdfPreview from './PdfPreview';
 import ShareLink from './ShareLink';
 import SignDialog, { type Signed } from './SignDialog';
-import { ExampleChip, Field, LinesInput, btnDanger, btnGhost, btnPrimary, card, confirmAction, inputCls, sectionTitle, selectBase, selectCls } from './ui';
+import { ExampleChip, Field, LinesInput, btnGhost, btnPrimary, card, confirmAction, inputCls, sectionTitle, selectBase, selectCls } from './ui';
 
 /**
  * The form's sections, the fields each one edits, and the parts of the PDF it
@@ -35,6 +36,7 @@ const PDF_PARTS: Record<SectionId, BusinessSection[]> = {
   terms: ['notes', 'terms', 'signature'],
 };
 const SECTIONS = Object.keys(FIELDS) as SectionId[];
+const SECTION_TITLES: Record<SectionId, string> = { from: 'From', document: 'Document', client: 'Client', lines: 'Lines', terms: 'Terms and notes' };
 
 /** `doc` with `section`'s fields taken from `from`. Keys set to undefined are kept, so clearing a date saves. */
 function withFields(doc: InvoiceDoc, from: InvoiceDoc, sections: Iterable<SectionId>): InvoiceDoc {
@@ -61,7 +63,7 @@ function readCollapsed(): Set<SectionId> {
  * room the preview needs.
  */
 export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
-  const { companies, clients, products, folders, updateDocument, deleteMany, open, saveClient } = useAppStore();
+  const { companies, clients, products, folders, updateDocument, deleteMany, duplicate, open, saveClient } = useAppStore();
   const company = companies.find((c) => c.id === doc.companyId);
   const [pane, setPane] = useState<'edit' | 'preview'>('edit');
 
@@ -210,20 +212,11 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
             {KIND_NAMES[doc.kind]}
             {doc.example && <ExampleChip />}
           </div>
-          <div className="truncate font-semibold text-slate-900 dark:text-slate-100">{doc.number}</div>
+          <div className="truncate font-semibold text-slate-900 dark:text-slate-100">
+            {doc.number}
+            {doc.client.name && <span className="font-normal text-slate-500 dark:text-slate-400"> · {doc.client.name}</span>}
+          </div>
         </div>
-        <button
-          type="button"
-          className={btnDanger}
-          onClick={() => {
-            const warn = doc.kind === 'invoice'
-              ? `Delete invoice ${doc.number}? This cannot be undone — and if it was sent, invoice numbers are expected to run without gaps.`
-              : `Delete ${KIND_NAMES[doc.kind].toLowerCase()} ${doc.number}? This cannot be undone.`;
-            if (confirmAction(warn)) void deleteMany('documents', [doc.id]);
-          }}
-        >
-          Delete
-        </button>
         <button
           type="button"
           className={btnGhost}
@@ -238,6 +231,37 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
         <button type="button" className={btnPrimary} onClick={() => void download()}>
           Download PDF
         </button>
+        <MoreMenu label="More for this document">
+          {(close) => (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                className={menuItem}
+                onClick={() => {
+                  close();
+                  void duplicate(doc.id);
+                }}
+              >
+                Duplicate
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={`${menuItem} text-red-700 dark:text-red-400`}
+                onClick={() => {
+                  close();
+                  const warn = doc.kind === 'invoice'
+                    ? `Delete invoice ${doc.number}? This cannot be undone — and if it was sent, invoice numbers are expected to run without gaps.`
+                    : `Delete ${KIND_NAMES[doc.kind].toLowerCase()} ${doc.number}? This cannot be undone.`;
+                  if (confirmAction(warn)) void deleteMany('documents', [doc.id]);
+                }}
+              >
+                Delete
+              </button>
+            </>
+          )}
+        </MoreMenu>
       </div>
 
       {signing && <SignDialog doc={doc} pdf={signing} onSigned={(x) => void onSigned(x)} onClose={() => setSigning(null)} />}
@@ -539,14 +563,24 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
         <div className={`${pane === 'preview' ? '' : 'hidden lg:block'}`}>
           <div className="lg:sticky lg:top-4">
             <PdfPreview doc={doc} highlight={pointed ? PDF_PARTS[pointed] : null} file={signedCurrent ? signedBlob : undefined} />
-            {dirty.size > 0 && (
-              <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400">
-                Unsaved changes are not in the preview yet — Save the section (or press {navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl'}+S).
-              </p>
-            )}
           </div>
         </div>
       </div>
+
+      {/* Unsaved edits, wherever you are on the page: what, and Save all. */}
+      {dirty.size > 0 && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-30 flex justify-center px-4 pb-[env(safe-area-inset-bottom)]">
+          <div className="pointer-events-auto flex max-w-full items-center gap-3 whitespace-nowrap rounded-xl bg-amber-50 px-4 py-2 text-sm text-amber-900 shadow-lg ring-1 ring-amber-300 dark:bg-amber-950 dark:text-amber-100 dark:ring-amber-800">
+            <span className="min-w-0 truncate">
+              Unsaved: {SECTIONS.filter((x) => dirty.has(x)).map((x) => SECTION_TITLES[x]).join(', ')}
+              <span className="hidden sm:inline"> — not in the preview yet</span>
+            </span>
+            <button type="button" className={`${btnPrimary} shrink-0 py-1.5`} onClick={() => save(dirty)}>
+              Save all
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

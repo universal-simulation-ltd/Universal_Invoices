@@ -5,6 +5,7 @@ import { uid } from '../lib/convert';
 import { codeFromFileName, isPicture, toStored } from '../lib/picture';
 import type { Folder, NumberStyle, Product } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
+import { CatalogueFromBefore } from './FromBefore';
 import ImagePicker from './ImagePicker';
 import { saveSpreadsheet } from './exportSheet';
 import RecordList, { type TreeNode } from './RecordList';
@@ -264,6 +265,7 @@ export default function CatalogueView() {
           Drop pictures to make a product of each — the file name becomes its code. Drop on a product to change its picture.
         </div>
       )}
+      <CatalogueFromBefore />
       {notice && (
         <div className="flex items-start justify-between gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900 dark:border-orange-900/50 dark:bg-orange-950/40 dark:text-orange-200">
           <p>{notice}</p>

@@ -119,3 +119,83 @@ export default function FromBefore() {
     </div>
   );
 }
+
+const catalogueHiddenKey = (account: string) => `universal-invoices:from-before-catalogue-hidden:${account}`;
+
+/**
+ * The catalogue's twin of FromBefore, in the Catalogue tab (James,
+ * 2026-11-03: "my catalogue was lost in the company transition"): the
+ * catalogue items this browser still has from before each account kept its
+ * own, brought back with their folders. Merges — an item already here keeps
+ * the newer of the two.
+ */
+export function CatalogueFromBefore() {
+  const scope = useAppStore((s) => s.scope);
+  const products = useAppStore((s) => s.products);
+  const bringIn = useAppStore((s) => s.bringIn);
+  const [old, setOld] = useState<{ id: string; label: string }[] | null>(null);
+  const [hidden, setHidden] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!scope) return;
+    try {
+      setHidden(localStorage.getItem(catalogueHiddenKey(scope)) === '1');
+    } catch {
+      /* blocked storage: shown */
+    }
+    let gone = false;
+    void loadAll(null).then((all) => {
+      if (!gone) setOld(all.products.filter((p) => !p.example).map((p) => ({ id: p.id, label: p.code || p.description.split('\n')[0] || 'Unnamed item' })));
+    });
+    return () => {
+      gone = true;
+    };
+  }, [scope]);
+
+  if (!scope || hidden || !old) return null;
+  const here = new Set(products.map((p) => p.id));
+  const missing = old.filter((p) => !here.has(p.id));
+  if (!missing.length) return null;
+  const names = missing.slice(0, 6).map((p) => p.label).join(', ');
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-slate-800 dark:border-amber-800/70 dark:bg-amber-950/30 dark:text-slate-200">
+      <p>
+        <span className="font-semibold">Missing catalogue items?</span> This browser still has {missing.length} from before each account kept its own: {names}
+        {missing.length > 6 ? ` and ${missing.length - 6} more` : ''}.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className={btnPrimary}
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await bringIn([], true);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Bring them back
+        </button>
+        <button
+          type="button"
+          className={btnGhost}
+          onClick={() => {
+            setHidden(true);
+            try {
+              localStorage.setItem(catalogueHiddenKey(scope), '1');
+            } catch {
+              /* shown again next time, which is harmless */
+            }
+          }}
+        >
+          They are not this account’s
+        </button>
+      </div>
+    </div>
+  );
+}

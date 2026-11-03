@@ -40,3 +40,19 @@ describe('bringing companies back from before accounts were kept apart', () => {
     expect((await loadAll('account-c')).companies.map((c) => c.id)).toEqual(['hrv']);
   });
 });
+
+describe('bringing the catalogue back on its own', () => {
+  it('brings every catalogue item and folder from before, and no company', async () => {
+    const { useAppStore } = await import('../stores/appStore');
+    const { product } = exampleData();
+    setScope(null);
+    await put('folders', { id: 'f1', name: 'Simulators', updatedAt: 1 });
+    await put('products', { ...product, id: 'p-old', example: false, folderId: 'f1' });
+    await useAppStore.getState().init('account-d');
+    await useAppStore.getState().bringIn([], true);
+    const s = useAppStore.getState();
+    expect(s.products.map((p) => p.id)).toEqual(['p-old']);
+    expect(s.folders.map((f) => f.name)).toEqual(['Simulators']);
+    expect(s.companies).toEqual([]);
+  });
+});

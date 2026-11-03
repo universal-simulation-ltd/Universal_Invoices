@@ -8,6 +8,8 @@ import { useAppStore } from '../stores/appStore';
 import { CatalogueFromBefore } from './FromBefore';
 import Toast from './Toast';
 import ImagePicker from './ImagePicker';
+import UnitSelect from './UnitSelect';
+import { shownUnit } from '../lib/units';
 import { saveSpreadsheet } from './exportSheet';
 import RecordList, { type TreeNode } from './RecordList';
 import { DecimalInput, Field, MoneyInput, btnGhost, btnPrimary, card, confirmAction, inputCls } from './ui';
@@ -121,7 +123,7 @@ function NewProducts({ style, onDone }: { style: NumberStyle; onDone: () => void
           />
           {/* Their own row on a phone; the table's columns from sm up (`contents`). */}
           <div className="col-span-3 grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)] gap-2 sm:contents">
-            <input className={inputCls} value={p.unit} placeholder="Unit" aria-label="Unit" onChange={(e) => update(p.id, { unit: e.target.value })} />
+            <UnitSelect value={p.unit} onChange={(unit) => update(p.id, { unit })} />
             <MoneyInput value={p.unitPrice || undefined} onChange={(v) => update(p.id, { unitPrice: v ?? 0 })} style={style} placeholder="Price" ariaLabel="Price" />
             <DecimalInput value={p.taxRate} onChange={(taxRate) => update(p.id, { taxRate })} placeholder="VAT %" ariaLabel="VAT %" />
           </div>
@@ -324,14 +326,16 @@ export default function CatalogueView() {
             </div>
             <div className="tabular text-right text-sm">
               <div className="font-semibold text-slate-900 dark:text-slate-100">{formatMoney(p.unitPrice, currency, style, true)}</div>
-              {p.unit && <div className="text-xs italic text-slate-500">{p.unit}</div>}
+              {p.unit && <div className="text-xs italic text-slate-500">{shownUnit(p.unit)}</div>}
             </div>
           </div>
         )}
         form={(p, set) => (
+          // The picture on the left with Remove under it; everything else in
+          // one column on the right, Unit under Description (James, 2026-11-03).
           <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)]">
-            <div className="row-span-2">
-              <ImagePicker value={p.image} onChange={(image) => set({ image })} maxEdge={PRODUCT_EDGE} label="picture" />
+            <div className="sm:row-span-3">
+              <ImagePicker value={p.image} onChange={(image) => set({ image })} maxEdge={PRODUCT_EDGE} label="picture" stacked />
             </div>
             <Field label="Code">
               <input className={inputCls} value={p.code} onChange={(e) => set({ code: e.target.value })} autoFocus />
@@ -339,9 +343,9 @@ export default function CatalogueView() {
             <Field label="Description" className="sm:col-start-2">
               <textarea className={`${inputCls} resize-y`} rows={3} value={p.description} onChange={(e) => set({ description: e.target.value })} />
             </Field>
-            <div className="grid gap-3 sm:col-span-2 sm:grid-cols-3">
+            <div className="grid gap-3 sm:col-start-2 sm:grid-cols-3">
               <Field label="Unit">
-                <input className={inputCls} value={p.unit} placeholder="unité, day…" onChange={(e) => set({ unit: e.target.value })} />
+                <UnitSelect value={p.unit} onChange={(unit) => set({ unit })} />
               </Field>
               <Field label="Catalogue price" hint="Give a discount on the document.">
                 <MoneyInput value={p.unitPrice} onChange={(v) => set({ unitPrice: v ?? 0 })} style={style} />

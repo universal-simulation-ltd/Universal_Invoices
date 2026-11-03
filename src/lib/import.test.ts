@@ -10,6 +10,7 @@ import { renderPdf } from './pdf';
 import { textPages } from './pdfText';
 import { readBusinessPdf, readDate } from './readPdf';
 import type { InvoiceDoc } from './types';
+import { printedUnit } from './units';
 
 // Every PDF here is one this app made from the invented example, read back:
 // no real document is ever committed (the repo is public).
@@ -44,8 +45,9 @@ describe('import PDF', () => {
       taxRate: 20,
       statedTotal: computeTotals(doc).gross,
     });
+    // The unit as printed: one or many by the quantity (lib/units.ts).
     expect(read.lines.map(({ code, quantity, unit, unitPrice, discount }) => ({ code, quantity, unit, unitPrice, discount }))).toEqual(
-      doc.lines.map(({ code, quantity, unit, unitPrice, discount }) => ({ code, quantity, unit, unitPrice, discount })),
+      doc.lines.map(({ code, quantity, unit, unitPrice, discount }) => ({ code, quantity, unit: printedUnit(unit, quantity, 'en') ?? '', unitPrice, discount })),
     );
   });
 

@@ -4,6 +4,7 @@
 import type { BusinessDoc, PdfImage } from '@unisim/doc';
 import { addDays, counterAfter, defaultNumbering, formatNumber } from './numbering';
 import type { ReadDocument } from './readPdf';
+import { printedUnit, unitOf } from './units';
 import type { Attachment, BusinessDocKind, Client, Company, DocLine, InvoiceDoc, Product, StoredImage } from './types';
 
 export function uid(): string {
@@ -55,7 +56,7 @@ export function toBusinessDoc(doc: InvoiceDoc): BusinessDoc {
       code: l.code,
       description: l.description,
       quantity: l.quantity,
-      unit: l.unit.trim() || undefined,
+      unit: printedUnit(l.unit, l.quantity, doc.language),
       unitPrice: l.unitPrice,
       discount: l.discount,
       taxRate: l.taxRate,
@@ -295,7 +296,8 @@ export function importedDocument(
     currency: read.currency ?? fresh.doc.currency,
     taxMode,
     taxNote: taxMode === 'standard' ? '' : fresh.doc.taxNote,
-    lines: read.lines.map((l) => ({ id: uid(), ...l, ...(read.taxRate ? { taxRate: read.taxRate } : {}) })),
+    // A printed "3 jours" comes back as the list's unit, so it prints right in either language.
+    lines: read.lines.map((l) => ({ id: uid(), ...l, unit: unitOf(l.unit)?.key ?? l.unit, ...(read.taxRate ? { taxRate: read.taxRate } : {}) })),
     ...(read.discount ? { discount: read.discount } : {}),
     notes: read.notes,
     paymentTerms: read.paymentTerms || fresh.doc.paymentTerms,

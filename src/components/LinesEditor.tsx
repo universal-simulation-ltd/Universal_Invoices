@@ -3,6 +3,7 @@ import { arrange } from '../lib/arrange';
 import { blankLine, lineFromProduct } from '../lib/convert';
 import type { DocLine, Discount, Folder, InvoiceDoc, Product } from '../lib/types';
 import ImagePicker, { type PictureChoice } from './ImagePicker';
+import UnitSelect from './UnitSelect';
 import { DecimalInput, DiscountInput, MoneyInput, btnGhost, btnIcon, inputCls, labelCls, selectBase } from './ui';
 
 /**
@@ -101,7 +102,7 @@ export default function LinesEditor({
             </label>
             <label className="min-w-0">
               <span className={labelCls}>Unit</span>
-              <input className={inputCls} placeholder="unit, day…" value={line.unit} onChange={(e) => set(i, { unit: e.target.value })} />
+              <UnitSelect value={line.unit} onChange={(unit) => set(i, { unit })} />
             </label>
             {priced && (
               <>

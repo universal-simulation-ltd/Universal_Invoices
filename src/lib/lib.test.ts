@@ -6,6 +6,7 @@ import { exampleData } from './example';
 import { companyFromOrg, hasBusinessDetails, type OrgDetails } from './fromOrg';
 import { moneyInputValue, parseDecimal, parseMoney } from './money';
 import { addDays, defaultNumbering, formatNumber } from './numbering';
+import { printedUnit, shownUnit } from './units';
 
 describe('numbering', () => {
   it('reproduces the Sellsy number', () => {
@@ -169,5 +170,23 @@ describe('company from the hub (platform 0318)', () => {
   it('knows when the hub has only a name', () => {
     expect(hasBusinessDetails({ id: 'x', name: 'Only a name' })).toBe(false);
     expect(hasBusinessDetails(org)).toBe(true);
+  });
+});
+
+describe('units', () => {
+  it('prints in the document language, one or many by the quantity', () => {
+    expect(printedUnit('day', 1, 'en')).toBe('day');
+    expect(printedUnit('day', 3, 'fr')).toBe('jours');
+    expect(printedUnit('person', 2, 'en')).toBe('people');
+  });
+  it('knows a unit written before the list, in either language', () => {
+    expect(printedUnit('unité', 2, 'en')).toBe('units');
+    expect(printedUnit('Days', 1, 'fr')).toBe('jour');
+    expect(shownUnit('day(s)')).toBe('day(s)');
+    expect(shownUnit('person')).toBe('person / people');
+  });
+  it('leaves a unit not on the list as written', () => {
+    expect(printedUnit(' pallet ', 4, 'fr')).toBe('pallet');
+    expect(printedUnit('  ', 4, 'en')).toBeUndefined();
   });
 });

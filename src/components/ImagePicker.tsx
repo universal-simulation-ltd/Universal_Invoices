@@ -22,6 +22,7 @@ export default function ImagePicker({
   maxEdge,
   label,
   compact = false,
+  stacked = false,
   choices,
 }: {
   value: StoredImage | undefined;
@@ -30,6 +31,8 @@ export default function ImagePicker({
   maxEdge: number;
   label: string;
   compact?: boolean;
+  /** Remove under the picture rather than beside it. */
+  stacked?: boolean;
   /**
    * Pictures to pick from (James, 2026-11-03: "allow the user to choose item
    * images from their catalogue or upload"). Given, a click opens a menu —
@@ -77,7 +80,7 @@ export default function ImagePicker({
     }
   };
   return (
-    <div ref={wrap} className="relative flex items-center gap-3">
+    <div ref={wrap} className={`relative flex gap-3 ${stacked ? 'flex-col items-start' : 'items-center'}`}>
       <button
         type="button"
         onClick={() => (withMenu ? setMenu((m) => !m) : input.current?.click())}

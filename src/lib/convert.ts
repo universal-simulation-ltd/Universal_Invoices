@@ -2,8 +2,9 @@
 // (new, convert, refresh). Pure: no IndexedDB, no DOM — the tests run it in Node.
 
 import type { BusinessDoc, PdfImage } from '@unisim/doc';
-import { addDays, formatNumber } from './numbering';
-import type { BusinessDocKind, Client, Company, DocLine, InvoiceDoc, StoredImage } from './types';
+import { addDays, counterAfter, defaultNumbering, formatNumber } from './numbering';
+import type { ReadDocument } from './readPdf';
+import type { Attachment, BusinessDocKind, Client, Company, DocLine, InvoiceDoc, StoredImage } from './types';
 
 export function uid(): string {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -184,4 +185,86 @@ export function blankLine(taxRate?: number): DocLine {
 export function pdfFileName(doc: InvoiceDoc): string {
   const base = [doc.number, doc.client.name].filter(Boolean).join(' - ') || 'document';
   return `${base.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 120)}.pdf`;
+}
+
+/** Names compared the way people type them: no case, accents or punctuation. */
+const plain = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+/** Your company the PDF is from, by name — the active one when none matches. */
+export function companyForImport(read: ReadDocument, mine: Company[], active?: Company): Company | undefined {
+  const names = [read.issuer.name, ...read.issuer.footer.slice(0, 1)].map(plain).filter(Boolean);
+  return mine.find((c) => names.includes(plain(c.name))) ?? active ?? mine[0];
+}
+
+/** A company made from the sender of an imported PDF, when you have none yet. */
+export function companyFromRead(read: ReadDocument, now = Date.now()): Company {
+  return {
+    id: uid(),
+    name: read.issuer.name || 'Your company',
+    address: read.issuer.address,
+    contact: read.issuer.contact,
+    bank: read.issuer.bank,
+    footer: read.issuer.footer,
+    defaults: {
+      language: read.language,
+      numberStyle: read.numberStyle,
+      currency: read.currency ?? 'EUR',
+      taxMode: read.taxRate ? 'standard' : 'export-exempt',
+      taxNote: '',
+      taxRate: read.taxRate ?? 20,
+      paymentTerms: read.paymentTerms,
+      notes: '',
+      validityDays: 30,
+      dueDays: 30,
+    },
+    numbering: defaultNumbering(read.language),
+    updatedAt: now,
+  };
+}
+
+/**
+ * "Import PDF": a document from what readPdf found. It keeps the PDF's own
+ * number — and moves the company's counter past it when it fits the
+ * pattern — and the PDF itself, to check against. The sender is your
+ * company's details when it matched by name, else what the PDF printed.
+ */
+export function importedDocument(
+  read: ReadDocument,
+  company: Company,
+  file: Attachment | undefined,
+  fallbackKind: BusinessDocKind,
+  today: string,
+): { doc: InvoiceDoc; company: Company } {
+  const kind = read.kind ?? fallbackKind;
+  const fresh = newDocument(kind, company, read.date ?? today);
+  const matched = plain(company.name) === plain(read.issuer.name) || plain(company.name) === plain(read.issuer.footer[0] ?? '');
+  const taxMode = read.taxRate ? 'standard' : company.defaults.taxMode === 'standard' ? 'export-exempt' : company.defaults.taxMode;
+  const number = read.number || fresh.doc.number;
+  const now = Date.now();
+  const doc: InvoiceDoc = {
+    ...fresh.doc,
+    status: 'sent',
+    issuer: matched || !read.issuer.name ? fresh.doc.issuer : { ...read.issuer, address: [...read.issuer.address], bank: [...read.issuer.bank], footer: [...read.issuer.footer] },
+    client: { name: read.client.name, address: read.client.address, reference: read.client.reference },
+    number,
+    validUntil: kind === 'invoice' || kind === 'delivery-note' ? undefined : (read.validUntil ?? fresh.doc.validUntil),
+    dueDate: kind === 'invoice' ? (read.dueDate ?? fresh.doc.dueDate) : undefined,
+    subject: read.subject,
+    language: read.language,
+    numberStyle: read.numberStyle,
+    currency: read.currency ?? fresh.doc.currency,
+    taxMode,
+    taxNote: taxMode === 'standard' ? '' : fresh.doc.taxNote,
+    lines: read.lines.map((l) => ({ id: uid(), ...l, ...(read.taxRate ? { taxRate: read.taxRate } : {}) })),
+    notes: read.notes,
+    paymentTerms: read.paymentTerms || fresh.doc.paymentTerms,
+    ...(file ? { imported: { file, statedTotal: read.statedTotal, checked: false } } : {}),
+    createdAt: now,
+    updatedAt: now,
+  };
+  if (!doc.validUntil) delete doc.validUntil;
+  if (!doc.dueDate) delete doc.dueDate;
+  // Its own number, not the next one: the counter only moves past it.
+  const numbering = read.number ? counterAfter(company.numbering[kind], read.number) : fresh.company.numbering[kind];
+  return { doc, company: { ...company, numbering: { ...company.numbering, [kind]: numbering }, updatedAt: now } };
 }

@@ -5,19 +5,30 @@
 Set up your company once — logo, address, bank details, legal footer — keep a
 catalogue of what you sell and a list of who you sell to, and make a numbered
 document in a few clicks. The PDF is drawn in your browser and previewed live
-beside the form. When a quote is accepted, *Make… → Invoice from this* carries
-every line across under a new number.
+beside the form. Each document shows its **journey** — estimate, quote, pro
+forma, invoice, delivery note — and the next step is made from it in a click,
+every line carried across under a new number.
 
 Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
 <https://opensource.unisim.co.uk/invoices>.
 
 ## What it does
 
-- **Five kinds of document:** quote, estimate, pro forma, invoice, delivery note
+- **Five kinds of document:** estimate, quote, pro forma, invoice, delivery note
   (no prices, a "received by" box). Documents has a sidebar of the five, with a
   count each; pick one to see only those, and the New button makes that kind.
   On All, **New document** opens the five with a line on what each is for.
   Double-tap a kind to make Documents open on it.
+- **The journey:** above every document, its five steps from estimate to
+  delivery note. A step is made here (*Make the invoice here*), or — when it
+  was done somewhere else — uploaded (a PDF or a picture, kept with it),
+  ticked *Done elsewhere*, or marked *Not needed*.
+- **Import PDF:** a quote, estimate, invoice or delivery note made somewhere
+  else is read into a document you can edit — number, dates, client, lines,
+  units, prices, notes, terms and bank details — with the PDF kept beside it.
+  Until you tick *Checked — it matches* it shows the PDF's total against what
+  the lines read come to, and making another document from it asks first.
+  Read in your browser; a scan with no text cannot be read.
 - **Numbering per company per kind**, from a pattern: `DEV-{YYYY}{MM}{DD}-{N:5}`
   → `DEV-20260727-00406`.
 - **Lines from your catalogue** (code, description, unit, price, a struck-through

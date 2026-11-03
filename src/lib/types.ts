@@ -140,6 +140,27 @@ export interface DocLine {
   taxRate?: number;
 }
 
+/** A file kept with a document: an imported PDF, or a step done elsewhere. */
+export interface Attachment {
+  name: string;
+  /** MIME type. */
+  type: string;
+  /** Bytes, for the size shown beside it. */
+  size: number;
+  /** `data:…;base64,…` */
+  dataUrl: string;
+}
+
+/**
+ * A step of a document's journey done outside the app (James, 2026-11-03: "if
+ * I have done them elsewhere I can upload, generate in platform or just
+ * manually tick / mark not needed").
+ */
+export type JourneyMark =
+  | { state: 'uploaded'; file: Attachment; at: number }
+  | { state: 'done'; at: number }
+  | { state: 'skipped'; at: number };
+
 export type DocStatus = 'draft' | 'sent' | 'accepted' | 'declined' | 'paid' | 'cancelled';
 
 /**
@@ -179,11 +200,29 @@ export interface InvoiceDoc {
   signature?: boolean;
   /** The document this one was made from ("Convert to invoice"). */
   sourceId?: string;
+  /**
+   * The journey's steps that have no document here — uploaded, done
+   * elsewhere, or not needed (lib/journey.ts). Kept on the journey's FIRST
+   * document only; deleting it hands them to the next one.
+   */
+  journey?: Partial<Record<BusinessDocKind, JourneyMark>>;
+  /**
+   * Read from a PDF ("Import PDF"): the file as it came, and the total it
+   * printed. Until you tick that the amounts match (`checked`), making
+   * another document from it asks first (James, 2026-11-03: "the user will
+   * need to verify amount etc").
+   */
+  imported?: { file: Attachment; statedTotal?: number; checked: boolean };
   createdAt: number;
   updatedAt: number;
 }
 
-export const KIND_ORDER: BusinessDocKind[] = ['quote', 'estimate', 'proforma', 'invoice', 'delivery-note'];
+/**
+ * The order of the journey, and so of every list of kinds: a rough estimate,
+ * then the firm quote, then pro forma, invoice and delivery note (James,
+ * 2026-11-03: "put estimate before quote").
+ */
+export const KIND_ORDER: BusinessDocKind[] = ['estimate', 'quote', 'proforma', 'invoice', 'delivery-note'];
 
 /** UI names — the app's own language is English; the PDF's is per document. */
 export const KIND_NAMES: Record<BusinessDocKind, string> = {

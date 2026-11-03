@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { saveBlob } from '@unisim/media/save';
+import { computeTotals, formatMoney } from '@unisim/doc';
 import { clientSnapshot, issuerSnapshot, pdfFileName, uid } from '../lib/convert';
 import { renderPdf } from '../lib/pdf';
 import { KIND_NAMES, KIND_ORDER, STATUS_NAMES, type DocStatus, type InvoiceDoc } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
+import { openAttachment } from './attachments';
+import DocumentJourney, { confirmMakeFrom } from './DocumentJourney';
 import LinesEditor from './LinesEditor';
 import { ExampleChip, Field, LinesInput, btnDanger, btnGhost, btnPrimary, card, confirmAction, inputCls, sectionTitle, selectBase, selectCls } from './ui';
 
@@ -16,9 +19,8 @@ const STATUSES: DocStatus[] = ['draft', 'sent', 'accepted', 'declined', 'paid', 
  * room the preview needs.
  */
 export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
-  const { companies, clients, products, folders, documents, updateDocument, deleteMany, convert, duplicate, open, saveClient } = useAppStore();
+  const { companies, clients, products, folders, updateDocument, deleteMany, convert, duplicate, open, saveClient } = useAppStore();
   const company = companies.find((c) => c.id === doc.companyId);
-  const source = doc.sourceId ? documents.find((d) => d.id === doc.sourceId) : undefined;
   const [pane, setPane] = useState<'edit' | 'preview'>('edit');
   const set = (patch: Partial<InvoiceDoc>) => updateDocument({ ...doc, ...patch });
 
@@ -79,7 +81,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
           onChange={(e) => {
             const v = e.target.value;
             if (v === 'duplicate') void duplicate(doc.id);
-            else if (v) void convert(doc.id, v as InvoiceDoc['kind']);
+            else if (v && confirmMakeFrom(doc)) void convert(doc.id, v as InvoiceDoc['kind']);
           }}
         >
           <option value="">Make…</option>
@@ -107,15 +109,9 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
         </button>
       </div>
 
-      {source && (
-        <p className="text-sm text-slate-600 dark:text-slate-400">
-          Made from {KIND_NAMES[source.kind].toLowerCase()}{' '}
-          <button type="button" className="font-medium text-orange-700 underline dark:text-orange-400" onClick={() => open(source.id)}>
-            {source.number}
-          </button>
-          .
-        </p>
-      )}
+      {doc.imported && <ImportedCheck doc={doc} onChecked={() => set({ imported: { ...doc.imported!, checked: true } })} />}
+
+      <DocumentJourney doc={doc} />
 
       {/* Phone: one pane at a time. */}
       <div className="flex gap-1 rounded-lg bg-slate-200 p-1 lg:hidden dark:bg-slate-800" role="tablist">
@@ -321,6 +317,49 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * An imported document, until you say its amounts match the PDF (James,
+ * 2026-11-03: "need to be able to generate another document from it, so
+ * user will need to verify amount etc"): the PDF's own total beside what
+ * the lines read add up to, and the PDF itself one tap away.
+ */
+function ImportedCheck({ doc, onChecked }: { doc: InvoiceDoc; onChecked: () => void }) {
+  const { file, statedTotal, checked } = doc.imported!;
+  const priced = doc.kind !== 'delivery-note';
+  const gross = priced ? computeTotals(doc).gross : undefined;
+  const money = (minor: number) => formatMoney(minor, doc.currency, doc.numberStyle, true);
+  // A cent either way is rounding in the PDF's own sums.
+  const matches = statedTotal === undefined || gross === undefined ? undefined : Math.abs(statedTotal - gross) <= 1;
+  const original = (
+    <button type="button" className="font-medium text-orange-700 underline dark:text-orange-400" onClick={() => openAttachment(file)}>
+      {file.name}
+    </button>
+  );
+  if (checked) {
+    return <p className="text-sm text-slate-600 dark:text-slate-400">Imported from {original}.</p>;
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-slate-800 dark:border-amber-800/70 dark:bg-amber-950/30 dark:text-slate-200">
+      <div className="min-w-0 flex-1 space-y-1">
+        <p>
+          Read from {original}. Check the lines, prices and dates against it before making anything from this {KIND_NAMES[doc.kind].toLowerCase()}.
+        </p>
+        {gross !== undefined && (
+          <p className={matches === false ? 'font-semibold text-red-700 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'}>
+            {statedTotal !== undefined ? `The PDF’s total: ${money(statedTotal)} · ` : 'No total found in the PDF · '}
+            these lines come to {money(gross)}
+            {matches === true && ' — they match'}
+            {matches === false && ' — they do not match'}.
+          </p>
+        )}
+      </div>
+      <button type="button" className={btnPrimary} onClick={onChecked}>
+        Checked — it matches
+      </button>
     </div>
   );
 }

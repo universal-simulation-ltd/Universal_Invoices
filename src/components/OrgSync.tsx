@@ -56,11 +56,22 @@ export function OrgSync() {
   const loaded = useAppStore((s) => s.loaded);
   const companies = useAppStore((s) => s.companies);
   const syncCompany = useAppStore((s) => s.syncCompany);
+  const mergeLiveCopies = useAppStore((s) => s.mergeLiveCopies);
+  // Signed in, the online copy is read first: it may already hold this
+  // company from another device, and making a second one here is how The
+  // Manager Abroad came to be listed twice (James, 2026-11-03). 'signed-out'
+  // here means the backup has not started yet.
+  const cloudBusy = useAppStore((s) => s.cloud.status === 'loading' || s.cloud.status === 'signed-out');
   const busy = useRef(false);
 
   useEffect(() => {
-    if (!loaded || !org || busy.current) return;
+    if (!loaded || !org || busy.current || cloudBusy) return;
     if (dismissedOrgs().includes(org.id)) return;
+    if (companies.filter((c) => c.orgId === org.id).length > 1) {
+      busy.current = true;
+      void mergeLiveCopies(org.id).finally(() => (busy.current = false));
+      return;
+    }
     const linked = companies.find((c) => c.orgId === org.id);
     const next = companyFromOrg(org, linked, profile?.display_name ?? '', uid);
     const logoUrl = org.logo_url ?? undefined;
@@ -77,7 +88,7 @@ export function OrgSync() {
         busy.current = false;
       }
     })();
-  }, [loaded, org, companies, profile?.display_name, syncCompany]);
+  }, [loaded, org, companies, profile?.display_name, syncCompany, mergeLiveCopies, cloudBusy]);
 
   return null;
 }

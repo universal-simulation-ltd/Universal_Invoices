@@ -1,14 +1,16 @@
 import { create } from 'zustand';
 import { move, type Target } from '../lib/arrange';
 import { makeBackup, mergeDataset, parseBackup } from '../lib/backup';
-import { convertDocument, duplicateDocument, newDocument, uid } from '../lib/convert';
+import { companyForImport, companyFromRead, convertDocument, duplicateDocument, importedDocument, newDocument, uid } from '../lib/convert';
+import { relinkAfterDelete } from '../lib/journey';
+import type { ReadDocument } from '../lib/readPdf';
 import { exampleData } from '../lib/example';
 import { exportXlsx, planImport, selectionFor } from '../lib/spreadsheet';
 import type { CloudMerge } from '../lib/cloud';
 import { recordDeleted } from '../lib/deletions';
 import { todayIso } from '../lib/numbering';
 import { loadAll, put, putMany, remove, removeMany, type Rows, type Table } from '../lib/store';
-import type { BusinessDocKind, Client, Company, Folder, InvoiceDoc, Product } from '../lib/types';
+import type { Attachment, BusinessDocKind, Client, Company, Folder, InvoiceDoc, JourneyMark, Product } from '../lib/types';
 
 export type Tab = 'documents' | 'clients' | 'catalogue' | 'companies';
 
@@ -48,6 +50,13 @@ interface AppState {
    * makes.
    */
   syncCompany: (c: Company) => Promise<void>;
+  /**
+   * Two copies of the same live company (two devices each made one before
+   * the online copy met): keeps the one most documents come from, moves the
+   * rest of the documents onto it and deletes the others everywhere —
+   * without forgetting the hub company the way a Delete does.
+   */
+  mergeLiveCopies: (orgId: string) => Promise<void>;
   /** "Duplicate" on a company, client or catalogue item: a copy you own — never live, never an example. Returns it. */
   duplicateRow: <K extends 'companies' | 'clients' | 'products'>(table: K, id: string) => Promise<Rows[K] | undefined>;
   /** A new folder (at the top of the catalogue) or a renamed one. */
@@ -63,6 +72,13 @@ interface AppState {
   /** Immediate in memory; written to IndexedDB a moment later (typing). */
   updateDocument: (doc: InvoiceDoc) => void;
   convert: (id: string, kind: BusinessDocKind) => Promise<void>;
+  /**
+   * "Import PDF": what readPdf found, as a new document from the company it
+   * names (or the active one; or, with none yet, a company made from it).
+   */
+  importRead: (read: ReadDocument, file: Attachment | undefined, fallbackKind: BusinessDocKind, activeId?: string) => Promise<void>;
+  /** A journey step done outside the app — or, with null, back to "to do". Kept on the journey's first document. */
+  markStep: (rootId: string, kind: BusinessDocKind, mark: JourneyMark | null) => void;
   duplicate: (id: string) => Promise<void>;
 
   /**
@@ -245,6 +261,20 @@ export const useAppStore = create<AppState>((set, get) => {
       await putMany({ products: p, folders: f });
     },
     syncCompany: (c) => saveRow('companies', c),
+    mergeLiveCopies: async (orgId) => {
+      const { companies, documents } = get();
+      const copies = companies.filter((c) => c.orgId === orgId);
+      if (copies.length < 2) return;
+      const uses = (c: Company) => documents.filter((d) => d.companyId === c.id).length;
+      const [keep, ...extra] = [...copies].sort((a, b) => uses(b) - uses(a) || a.updatedAt - b.updatedAt);
+      const gone = new Set(extra.map((c) => c.id));
+      const now = Date.now();
+      const moved = documents.filter((d) => gone.has(d.companyId)).map((d) => ({ ...d, companyId: keep.id, updatedAt: now }));
+      recordDeleted('companies', [...gone]);
+      set({ companies: companies.filter((c) => !gone.has(c.id)), documents: moved.reduce(upsert, documents) });
+      await putMany({ documents: moved });
+      await removeMany('companies', [...gone]);
+    },
     duplicateRow: async (table, id) => {
       const rows = get()[table] as Rows[typeof table][];
       const source = rows.find((r) => r.id === id);
@@ -273,6 +303,12 @@ export const useAppStore = create<AppState>((set, get) => {
         for (const id of ids) {
           clearTimeout(pending.get(id));
           pending.delete(id);
+        }
+        // The journeys they were in stay whole.
+        const relinked = relinkAfterDelete(get().documents, ids).map((d) => ({ ...d, updatedAt: Date.now() }));
+        if (relinked.length) {
+          set({ documents: relinked.reduce(upsert, get().documents) });
+          await putMany({ documents: relinked });
         }
       }
       const openId = get().openId;
@@ -319,6 +355,31 @@ export const useAppStore = create<AppState>((set, get) => {
       if (!source || !company) return;
       const { doc, company: next } = convertDocument(source, kind, company, todayIso());
       await added(doc, next);
+    },
+    importRead: async (read, file, fallbackKind, activeId) => {
+      const mine = ownCompanies(get().companies);
+      let company = companyForImport(read, mine, mine.find((c) => c.id === activeId));
+      let made = false;
+      if (!company) {
+        company = companyFromRead(read);
+        made = true;
+      }
+      const { doc, company: next } = importedDocument(read, company, file, fallbackKind, todayIso());
+      await added(doc, next);
+      if (made) await dropExample('companies');
+      set({
+        notice: made
+          ? `${next.name} was added to Your companies from this PDF — check its details there.`
+          : null,
+      });
+    },
+    markStep: (rootId, kind, mark) => {
+      const root = get().documents.find((d) => d.id === rootId);
+      if (!root) return;
+      const journey = { ...root.journey };
+      if (mark) journey[kind] = mark;
+      else delete journey[kind];
+      get().updateDocument({ ...root, journey });
     },
     duplicate: async (id) => {
       const source = get().documents.find((d) => d.id === id);

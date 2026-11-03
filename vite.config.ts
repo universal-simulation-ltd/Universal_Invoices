@@ -14,6 +14,9 @@ export default defineConfig(({ mode }) => {
     base: BASE_PATH,
     define: { __APP_VERSION__: JSON.stringify(pkg.version) },
     resolve: { dedupe: ['react', 'react-dom'] },
+    // "Import PDF"'s pdf.js worker as a classic script: iOS Safari cannot
+    // start a module worker from a blob (as in Universal PDF).
+    worker: { format: 'iife' },
     optimizeDeps: {
       exclude: ['@unisim/sdk'],
       // ⚠️ Dev only, and REQUIRED — see Universal_PalsPayIn's vite.config.ts.

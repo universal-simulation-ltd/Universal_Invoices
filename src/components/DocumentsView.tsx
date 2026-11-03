@@ -5,6 +5,7 @@ import { DOCUMENTS_VIEWS, DOCUMENTS_VIEW_VALUES, type DocumentsView as Documents
 import { KIND_NAMES, STATUS_NAMES, kindPlural, type DocStatus, type InvoiceDoc } from '../lib/types';
 import { ownCompanies, useAppStore } from '../stores/appStore';
 import { useActiveCompany } from './activeCompany';
+import ImportPdfButton from './ImportPdfButton';
 import NewDocumentButton from './NewDocumentButton';
 import { saveSpreadsheet } from './exportSheet';
 import { SelectCheckbox, SelectionBar, useSelection } from './selection';
@@ -53,7 +54,12 @@ export default function DocumentsView() {
 
   // "New …" is always here. With no company of your own yet, it opens the
   // company form first (the store's companyPrompt) and the document after.
-  const newButton = <NewDocumentButton kind={kind} onNew={(k) => void createDocument(k, fromCompany?.id)} />;
+  const newButton = (
+    <>
+      <NewDocumentButton kind={kind} onNew={(k) => void createDocument(k, fromCompany?.id)} />
+      <ImportPdfButton kind={kind} companyId={fromCompany?.id} />
+    </>
+  );
   const from = mine.length > 1 && fromCompany && (
     <p className="text-sm text-slate-500 dark:text-slate-400">
       From <span className="font-medium text-slate-700 dark:text-slate-200">{fromCompany.name}</span> ·{' '}
@@ -81,7 +87,7 @@ export default function DocumentsView() {
           }
         >
           {mine.length
-            ? 'Start with a quote from New document. When it is accepted, “Make… → Invoice from this” carries everything across.'
+            ? 'Start with an estimate or a quote from New document — or Import PDF to bring in one made elsewhere. Each document shows its journey to the delivery note.'
             : 'Your company’s name, address, logo and bank details go on every document — the first new document asks for them. Everything stays in this browser; sign in, and your company’s details come with you.'}
         </EmptyState>
       </div>

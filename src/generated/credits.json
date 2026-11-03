@@ -1,8 +1,8 @@
 {
   "app": "universal-invoices",
   "appVersion": "0.1.0",
-  "generated": "2026-10-30",
-  "noticesCount": 12,
+  "generated": "2026-11-03",
+  "noticesCount": 13,
   "ships": [
     {
       "name": "fflate",
@@ -12,6 +12,19 @@
       "homepage": "https://101arrowz.github.io/fflate",
       "authors": [
         "Arjun Barrett"
+      ],
+      "source": "node_modules"
+    },
+    {
+      "name": "pdfjs-dist",
+      "title": "PDF.js",
+      "version": "4.10.38",
+      "licence": "Apache-2.0",
+      "repo": "https://github.com/mozilla/pdf.js",
+      "homepage": "https://mozilla.github.io/pdf.js/",
+      "description": "renders every page you look at",
+      "authors": [
+        "Mozilla"
       ],
       "source": "node_modules"
     },

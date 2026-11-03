@@ -51,3 +51,27 @@ export function todayIso(now = new Date()): string {
   const d = String(now.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
+
+/**
+ * A number from somewhere else that fits the pattern (an imported
+ * DEV-20260927-00411 against DEV-{YYYY}{MM}{DD}-{N:5}) moves the counter past
+ * it, so the next one made here carries on the sequence instead of going
+ * back to 1. Returns the counter unchanged when it does not fit.
+ */
+export function counterAfter(numbering: Numbering, number: string): Numbering {
+  let groups = 0;
+  let n = -1;
+  const source = numbering.pattern
+    .split(/(\{(?:YYYY|YY|MM|DD|N(?::\d+)?)\})/)
+    .map((part, i) => {
+      if (i % 2 === 0) return part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      groups++;
+      if (part.startsWith('{N')) n = groups;
+      return part === '{YYYY}' ? '(\\d{4})' : part.startsWith('{N') ? '(\\d+)' : '(\\d{2})';
+    })
+    .join('');
+  const m = n > 0 ? number.trim().match(new RegExp(`^${source}$`)) : null;
+  if (!m) return numbering;
+  const used = Number(m[n]);
+  return used >= numbering.next ? { ...numbering, next: used + 1 } : numbering;
+}

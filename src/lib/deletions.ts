@@ -3,12 +3,14 @@
 // only a deleted row reappearing from the copy — never data.
 
 import { pruneTombstones, type Table, type Tombstone } from './cloud';
+import { getScope } from './store';
 
-const KEY = 'universal-invoices:deleted';
+// Per account, like the database (store.ts): signed out keeps the original key.
+const key = () => `universal-invoices:deleted${getScope() ? `:${getScope()}` : ''}`;
 
 export function readTombstones(): Tombstone[] {
   try {
-    const v: unknown = JSON.parse(localStorage.getItem(KEY) ?? '[]');
+    const v: unknown = JSON.parse(localStorage.getItem(key()) ?? '[]');
     return Array.isArray(v) ? (v as Tombstone[]).filter((t) => t && typeof t.id === 'string' && typeof t.at === 'number') : [];
   } catch {
     return [];
@@ -17,7 +19,7 @@ export function readTombstones(): Tombstone[] {
 
 export function writeTombstones(list: Tombstone[]) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(pruneTombstones(list)));
+    localStorage.setItem(key(), JSON.stringify(pruneTombstones(list)));
   } catch {
     /* storage blocked — see the header */
   }

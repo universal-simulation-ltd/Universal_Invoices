@@ -8,6 +8,7 @@ import { useAppStore } from '../stores/appStore';
 import { openAttachment } from './attachments';
 import DocumentJourney, { confirmMakeFrom } from './DocumentJourney';
 import LinesEditor from './LinesEditor';
+import ShareLink from './ShareLink';
 import { ExampleChip, Field, LinesInput, btnDanger, btnGhost, btnPrimary, card, confirmAction, inputCls, sectionTitle, selectBase, selectCls } from './ui';
 
 const STATUSES: DocStatus[] = ['draft', 'sent', 'accepted', 'declined', 'paid', 'cancelled'];
@@ -45,9 +46,12 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
     [],
   );
 
+  // Saving the PDF also offers its link (ShareLink): private until shared.
+  const [shareSignal, setShareSignal] = useState(0);
   const download = async () => {
     await saveBlob(renderPdf(doc).blob, pdfFileName(doc));
     if (doc.status === 'draft') set({ status: 'sent' });
+    setShareSignal((n) => n + 1);
   };
 
   const convertTargets = useMemo(() => KIND_ORDER.filter((k) => k !== doc.kind), [doc.kind]);
@@ -104,6 +108,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
         >
           Delete
         </button>
+        <ShareLink doc={doc} openSignal={shareSignal} />
         <button type="button" className={btnPrimary} onClick={() => void download()}>
           Download PDF
         </button>

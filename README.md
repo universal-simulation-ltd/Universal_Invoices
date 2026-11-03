@@ -29,6 +29,11 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   Until you tick *Checked — it matches* it shows the PDF's total against what
   the lines read come to, and making another document from it asks first.
   Read in your browser; a scan with no text cannot be read.
+- **A link to each document:** signed in, *Share* (and every *Download PDF*)
+  gives the document a link to its PDF, kept on your Universal ID and updated
+  as you edit. It is **private** — it opens only for you, signed in — until
+  you tick *Anyone with the link can open it*; *Stop sharing* deletes it, and
+  so does deleting the document.
 - **Numbering per company per kind**, from a pattern: `DEV-{YYYY}{MM}{DD}-{N:5}`
   → `DEV-20260727-00406`.
 - **Lines from your catalogue** (code, description, unit, price, a struck-through
@@ -88,6 +93,16 @@ not end-to-end encrypted. The limit is 10 MB (50 MB for organisations on
 Enterprise); past it the backup pauses and says so. Advanced → "Online backup
 is on" turns it off and deletes the copy; this browser keeps everything.
 Deleting your Universal ID deletes the copy.
+
+**Each account its own.** In one browser, each Universal ID keeps its own
+companies, clients, catalogue and documents, and signed out keeps another set:
+signing in to a second account never mixes the first one's in. The first time
+a new account with no online copy is used, what you made here signed out is
+copied into it.
+
+**Share links.** A document's link holds its PDF on your Universal ID, read
+back only through a check that it is shared or yours. Private until you share
+it; stopping sharing, or deleting the document, deletes the copy.
 
 ## How it is built
 

@@ -53,7 +53,9 @@ export function useLiveOrg(): { org: OrgDetails | null; liveFor: (c: Company) =>
 export function OrgSync() {
   const { org } = useLiveOrg();
   const { profile } = useProfile();
-  const loaded = useAppStore((s) => s.loaded);
+  const { user } = useUser();
+  // The rows of the account signed in, not the last one's.
+  const loaded = useAppStore((s) => s.loaded && !!user && s.scope === user.id);
   const companies = useAppStore((s) => s.companies);
   const syncCompany = useAppStore((s) => s.syncCompany);
   const mergeLiveCopies = useAppStore((s) => s.mergeLiveCopies);

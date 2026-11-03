@@ -57,7 +57,11 @@ export const cloudControls: { turnOff?: () => Promise<void>; turnOn?: () => void
 export default function CloudBackup() {
   const { supabase } = useUniversal();
   const { user } = useUser();
-  const loaded = useAppStore((s) => s.loaded);
+  // Only the signed-in account's own rows are ever synced: `loaded` counts
+  // once the store holds that account's (App.tsx switches it).
+  const uidNow = useUser().user?.id ?? null;
+  const loaded = useAppStore((s) => s.loaded && s.scope === uidNow);
+  const adoptSignedOut = useAppStore((s) => s.adoptSignedOut);
   const companies = useAppStore((s) => s.companies);
   const clients = useAppStore((s) => s.clients);
   const products = useAppStore((s) => s.products);
@@ -103,6 +107,8 @@ export default function CloudBackup() {
       if (error) throw error;
 
       let due = uploaded.current !== fingerprint();
+      // Signed in to another account meanwhile: this answer is not for these rows.
+      if (useAppStore.getState().scope !== uid) return;
       if (row && row.rev !== readPrefs(uid).rev) {
         // Something new online: another device, or this browser's first time.
         const s = useAppStore.getState();
@@ -123,6 +129,14 @@ export default function CloudBackup() {
         return;
       }
 
+      // A new account with nothing online and nothing here yet takes in what
+      // was made in this browser signed out — once: after this upload there
+      // is a copy online.
+      if (!row) {
+        const now = useAppStore.getState();
+        if (!now.companies.length && !now.documents.length && !now.clients.length && !now.products.length) await adoptSignedOut();
+      }
+      if (useAppStore.getState().scope !== uid) return;
       const s = useAppStore.getState();
       const print = fingerprint();
       const text = pack({ companies: s.companies, clients: s.clients, products: s.products, folders: s.folders, documents: s.documents }, readTombstones());

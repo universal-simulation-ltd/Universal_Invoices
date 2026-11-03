@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { DefaultViewSelect, UniversalAppsNavBar, UpdateNotice, useDefaultView, useUserPrefs } from '@unisim/sdk';
+import { useEffect, useRef } from 'react';
+import { DefaultViewSelect, UniversalAppsNavBar, UpdateNotice, useDefaultView, useUser, useUserPrefs } from '@unisim/sdk';
 import ProductLogo from './components/Header/ProductLogo';
 import AppMenu from './components/Header/AppMenu';
 import CatalogueView from './components/CatalogueView';
@@ -12,6 +12,8 @@ import TabOrderPreference from './components/TabOrderPreference';
 import { DOCUMENTS_VIEWS, normaliseOrder, TAB_VALUES, TABS } from './lib/tabs';
 import { OrgSync } from './components/OrgSync';
 import CloudBackup from './components/CloudBackup';
+import SharedDocument from './components/SharedDocument';
+import { ShareCleanup } from './components/ShareLink';
 import { cloudFooter } from './components/cloudText';
 import { useAppStore, type Tab } from './stores/appStore';
 import { useThemeStore } from './stores/themeStore';
@@ -24,6 +26,9 @@ export const CONTAINER = 'gutter mx-auto w-full max-w-[96rem]';
 
 const REPO_URL = 'https://github.com/universal-simulation-ltd/Universal_Invoices';
 
+// A share link (ShareLink.tsx) opens the shared PDF instead of the app.
+const SHARE_ID = new URLSearchParams(location.search).get('share');
+
 export default function App() {
   const { init, loaded, tab, setTab, openId, documents, notice, dismissNotice } = useAppStore();
   const cloudLine = cloudFooter(useAppStore((s) => s.cloud));
@@ -35,11 +40,21 @@ export default function App() {
   const tabOrder = normaliseOrder(pref<unknown>('tabOrder', null));
   const setTabOrder = (order: Tab[]) => setPref('tabOrder', order);
 
+  // Each Universal ID has its own rows in this browser, and signed out has
+  // its own (lib/store.ts): signing in, out or across loads that account's.
+  const { user, loading } = useUser();
+  const account = user && !(user as { is_anonymous?: boolean }).is_anonymous ? user.id : null;
+  const opened = useRef(false);
   useEffect(() => {
-    void init().then(() => setTab(homeTab.defaultView));
-    // Once, on load: the home tab is where the app OPENS, not where it stays.
+    if (loading) return;
+    void init(account).then(() => {
+      // Once, on load: the home tab is where the app OPENS, not where it stays.
+      if (opened.current) return;
+      opened.current = true;
+      setTab(homeTab.defaultView);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [init]);
+  }, [init, loading, account]);
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-100 dark:bg-slate-950">
@@ -73,6 +88,7 @@ export default function App() {
         <OrgSync />
         {/* Signed in: a copy on the Universal ID, kept up to date. */}
         <CloudBackup />
+        <ShareCleanup />
       </div>
 
       <main className={`${CONTAINER} flex-1 py-4 sm:py-6`}>
@@ -85,6 +101,10 @@ export default function App() {
           </div>
         )}
 
+        {SHARE_ID ? (
+          <SharedDocument id={SHARE_ID} />
+        ) : (
+          <>
         {!openDoc && (
           // A double tap on a tab makes it the one the app opens on (the suite
           // rule); "Opens on" in Tune this app is the same choice for anybody
@@ -103,6 +123,8 @@ export default function App() {
           <CatalogueView />
         ) : (
           <CompaniesView />
+        )}
+          </>
         )}
       </main>
 

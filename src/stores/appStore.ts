@@ -3,19 +3,25 @@ import { move, type Target } from '../lib/arrange';
 import { makeBackup, mergeDataset, parseBackup } from '../lib/backup';
 import { companyForImport, companyFromRead, convertDocument, duplicateDocument, importedDocument, newDocument, uid } from '../lib/convert';
 import { relinkAfterDelete } from '../lib/journey';
+import { shareHooks } from '../lib/shareHooks';
 import type { ReadDocument } from '../lib/readPdf';
 import { exampleData } from '../lib/example';
 import { exportXlsx, planImport, selectionFor } from '../lib/spreadsheet';
 import type { CloudMerge } from '../lib/cloud';
 import { recordDeleted } from '../lib/deletions';
 import { todayIso } from '../lib/numbering';
-import { loadAll, put, putMany, remove, removeMany, type Rows, type Table } from '../lib/store';
+import { getScope, loadAll, put, putMany, remove, removeMany, setScope, type Rows, type Table } from '../lib/store';
 import type { Attachment, BusinessDocKind, Client, Company, Folder, InvoiceDoc, JourneyMark, Product } from '../lib/types';
 
 export type Tab = 'documents' | 'clients' | 'catalogue' | 'companies';
 
 interface AppState {
   loaded: boolean;
+  /**
+   * The Universal ID the loaded rows belong to; null = signed out. The
+   * online backup and the live company act only when it is the signed-in one.
+   */
+  scope: string | null;
   companies: Company[];
   clients: Client[];
   products: Product[];
@@ -33,7 +39,14 @@ interface AppState {
    */
   companyPrompt: BusinessDocKind | null;
 
-  init: () => Promise<void>;
+  /** Load an account's rows (null = signed out), first writing any edit still pending for the last one. */
+  init: (account?: string | null) => Promise<void>;
+  /**
+   * A new account's first time here with nothing online: what was made in
+   * this browser while signed out comes in with it (copied, never moved).
+   * Returns how many rows came.
+   */
+  adoptSignedOut: () => Promise<number>;
   setTab: (tab: Tab) => void;
   open: (id: string | null) => void;
   dismissNotice: () => void;
@@ -187,6 +200,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
   return {
     loaded: false,
+    scope: null,
     companies: [],
     clients: [],
     products: [],
@@ -198,9 +212,42 @@ export const useAppStore = create<AppState>((set, get) => {
     companyPrompt: null,
     cloud: { status: 'signed-out', at: null, bytes: null, limit: null, message: null },
 
-    init: async () => {
+    init: async (account = null) => {
+      // An edit typed a moment ago belongs to the account it was typed in.
+      for (const [id, t] of pending) {
+        clearTimeout(t);
+        pending.delete(id);
+        const doc = get().documents.find((d) => d.id === id);
+        if (doc) await put('documents', doc);
+      }
+      setScope(account);
+      set({ loaded: false, scope: account, openId: null, companyPrompt: null });
       const all = await loadAll();
+      if (getScope() !== account) return; // switched again meanwhile
       set({ ...all, loaded: true });
+    },
+    adoptSignedOut: async () => {
+      if (getScope() === null) return 0;
+      const theirs = await loadAll(null);
+      const { companies, clients, products, folders, documents } = get();
+      const { write, added: n } = mergeDataset({ companies, clients, products, folders, documents }, {
+        companies: theirs.companies.filter((r) => !r.example),
+        clients: theirs.clients.filter((r) => !r.example),
+        products: theirs.products.filter((r) => !r.example),
+        folders: theirs.folders,
+        documents: theirs.documents.filter((r) => !r.example),
+      });
+      if (!n) return 0;
+      await putMany(write);
+      set({
+        companies: write.companies.reduce(upsert, companies),
+        clients: write.clients.reduce(upsert, clients),
+        products: write.products.reduce(upsert, products),
+        folders: write.folders.reduce(upsert, folders),
+        documents: write.documents.reduce(upsert, documents),
+        notice: `What you made in this browser while signed out (${n} item${n === 1 ? '' : 's'}) is now kept on this account too.`,
+      });
+      return n;
     },
     // Leaving for another tab drops a pending "register your company first".
     setTab: (tab) => set({ tab, openId: null, companyPrompt: null }),
@@ -304,6 +351,7 @@ export const useAppStore = create<AppState>((set, get) => {
           clearTimeout(pending.get(id));
           pending.delete(id);
         }
+        shareHooks.deleted?.(ids);
         // The journeys they were in stay whole.
         const relinked = relinkAfterDelete(get().documents, ids).map((d) => ({ ...d, updatedAt: Date.now() }));
         if (relinked.length) {

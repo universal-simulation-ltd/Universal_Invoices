@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useScrollHint } from '@unisim/sdk';
 import { journeyOf, nextStep, sourceFor, startOf, stepsOf, type Step } from '../lib/journey';
-import { KIND_NAMES, KIND_ORDER, type BusinessDocKind, type InvoiceDoc } from '../lib/types';
+import { KIND_NAMES, KIND_ORDER, kindPlural, type BusinessDocKind, type InvoiceDoc } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
 import { fileSize, openAttachment, readAttachment } from './attachments';
 import { btnGhost, btnPrimary, confirmAction, sectionTitle } from './ui';
@@ -82,7 +82,15 @@ export default function DocumentJourney({ doc }: { doc: InvoiceDoc }) {
             <button
               type="button"
               aria-pressed={picked === s.kind}
+              // A step made here opens its document (James, 2026-11-03: "when
+              // clicking a step change to that document, no need for the link
+              // below"); the others show what can be done with them.
+              title={s.state === 'made' && s.kind !== doc.kind ? `Open ${s.docs[s.docs.length - 1].number}` : undefined}
               onClick={() => {
+                if (s.state === 'made' && s.kind !== doc.kind) {
+                  open(s.docs[s.docs.length - 1].id);
+                  return;
+                }
                 setPicked(s.kind);
                 setError(null);
                 setAsking(false);
@@ -105,19 +113,38 @@ export default function DocumentJourney({ doc }: { doc: InvoiceDoc }) {
         ))}
       </ol>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-        {step.state === 'made' &&
-          step.docs.map((d) => (
-            <span key={d.id} className="mr-2">
-              {d.id === doc.id ? (
-                <span className="font-medium">{d.number} — this {KIND_NAMES[d.kind].toLowerCase()}</span>
-              ) : (
-                <button type="button" className="font-medium text-orange-700 underline dark:text-orange-400" onClick={() => open(d.id)}>
+      {/* Outside the row below, so a row with nothing to say (a step made here) takes no room. */}
+      <input
+        ref={upload}
+        type="file"
+        accept="application/pdf,image/*"
+        className="hidden"
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (!f) return;
+          try {
+            markStep(journey.root.id, step.kind, { state: 'uploaded', file: await readAttachment(f), at: Date.now() });
+            setError(null);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+          }
+        }}
+      />
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-700 empty:hidden dark:text-slate-300">
+        {/* A step opens its newest document; any others of the kind are here. */}
+        {step.state === 'made' && step.docs.length > 1 && (
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-slate-500 dark:text-slate-400">Other {kindPlural(step.kind).toLowerCase()} in this project:</span>
+            {step.docs
+              .filter((d) => d.id !== doc.id)
+              .map((d) => (
+                <button key={d.id} type="button" className="font-medium text-orange-700 underline dark:text-orange-400" onClick={() => open(d.id)}>
                   {d.number}
                 </button>
-              )}
-            </span>
-          ))}
+              ))}
+          </span>
+        )}
 
         {uploaded && (
           <>
@@ -170,23 +197,6 @@ export default function DocumentJourney({ doc }: { doc: InvoiceDoc }) {
             </button>
           </>
         )}
-        <input
-          ref={upload}
-          type="file"
-          accept="application/pdf,image/*"
-          className="hidden"
-          onChange={async (e) => {
-            const f = e.target.files?.[0];
-            e.target.value = '';
-            if (!f) return;
-            try {
-              markStep(journey.root.id, step.kind, { state: 'uploaded', file: await readAttachment(f), at: Date.now() });
-              setError(null);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : String(err));
-            }
-          }}
-        />
       </div>
       {error && <p className="mt-2 text-sm text-red-700 dark:text-red-400">{error}</p>}
     </section>

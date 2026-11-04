@@ -13,31 +13,32 @@ export default function TabOrderPreference({ order, onOrder }: { order: Tab[]; o
   const [held, setHeld] = useState<Tab | null>(null);
   const move = (tab: Tab, to: number) => onOrder(moveTab(order, tab, to));
 
+  // Captured to the LIST, which never moves: a row dragged down is re-inserted
+  // by React, and a captured node that moves loses the capture (the drag
+  // stopped after one place).
   const grip = (tab: Tab) => ({
     onPointerDown: (e: PointerEvent<HTMLSpanElement>) => {
       e.preventDefault();
-      e.currentTarget.setPointerCapture(e.pointerId);
+      list.current?.setPointerCapture(e.pointerId);
       setHeld(tab);
     },
-    onPointerMove: (e: PointerEvent<HTMLSpanElement>) => {
-      if (held !== tab) return;
-      const rows = [...(list.current?.children ?? [])] as HTMLElement[];
-      const at = rows.findIndex((r) => {
-        const b = r.getBoundingClientRect();
-        return e.clientY >= b.top && e.clientY <= b.bottom;
-      });
-      if (at >= 0 && order[at] !== tab) move(tab, at);
-    },
-    onPointerUp: () => setHeld(null),
-    onPointerCancel: () => setHeld(null),
   });
+  const onMove = (e: PointerEvent<HTMLOListElement>) => {
+    if (!held) return;
+    const rows = [...(list.current?.children ?? [])] as HTMLElement[];
+    const at = rows.findIndex((r) => {
+      const b = r.getBoundingClientRect();
+      return e.clientY >= b.top && e.clientY <= b.bottom;
+    });
+    if (at >= 0 && order[at] !== held) move(held, at);
+  };
 
   const arrow = 'h-9 w-9 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100';
   return (
     <fieldset className="py-2">
       <legend className="text-[13px] font-semibold text-slate-800 dark:text-slate-200">Tab order</legend>
       <p className="mb-2 mt-0.5 text-xs text-slate-500 dark:text-slate-400">Drag a tab along the bar, or move it here.</p>
-      <ol ref={list} className="space-y-1">
+      <ol ref={list} className="space-y-1" onPointerMove={onMove} onPointerUp={() => setHeld(null)} onPointerCancel={() => setHeld(null)}>
         {order.map((tab, i) => (
           <li
             key={tab}

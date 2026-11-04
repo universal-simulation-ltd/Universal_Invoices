@@ -32,7 +32,7 @@ export default function TabBar({
 }) {
   const nav = useRef<HTMLElement>(null);
   const [drag, setDrag] = useState<{ tab: Tab; order: Tab[] } | null>(null);
-  const press = useRef<{ tab: Tab; x: number; y: number; mouse: boolean; timer?: ReturnType<typeof setTimeout> } | null>(null);
+  const press = useRef<{ tab: Tab; id: number; x: number; y: number; mouse: boolean; timer?: ReturnType<typeof setTimeout> } | null>(null);
   const dragging = useRef(false);
   /** The click that ends a drag is not a tap. */
   const swallow = useRef(false);
@@ -40,6 +40,14 @@ export default function TabBar({
 
   const pickUp = (t: Tab) => {
     dragging.current = true;
+    // Only now, mouse or finger: from here the bar hears the pointer even off
+    // the bar, so letting go anywhere ends the drag. Not at pointerdown — a
+    // pointer captured to the bar makes a plain click land on the bar, not the tab.
+    try {
+      if (press.current) nav.current?.setPointerCapture(press.current.id);
+    } catch {
+      /* the pointer has already gone */
+    }
     setDrag({ tab: t, order });
     navigator.vibrate?.(10);
   };
@@ -71,44 +79,48 @@ export default function TabBar({
     return () => window.removeEventListener('keydown', onKey);
   }, [drag]);
 
+  // Move and let go are heard on the BAR, which the pointer is captured to: a
+  // tab's own button is re-inserted when it moves right past another (React
+  // moves the node), and a captured node that moves loses the capture — so
+  // a tab dragged right used to stop after one place.
+  const onMove = (e: PointerEvent<HTMLElement>) => {
+    const p = press.current;
+    if (!p) return;
+    if (!dragging.current) {
+      const moved = Math.hypot(e.clientX - p.x, e.clientY - p.y) > (p.mouse ? 5 : SLOP);
+      if (!moved) return;
+      if (p.mouse) pickUp(p.tab);
+      else {
+        // Moved before the hold: a scroll. Let it be.
+        clearTimeout(p.timer);
+        press.current = null;
+        return;
+      }
+    }
+    // Over another tab: this one takes its place.
+    const over = [...(nav.current?.querySelectorAll<HTMLElement>('[data-tab]') ?? [])].find((b) => {
+      const r = b.getBoundingClientRect();
+      return e.clientX >= r.left && e.clientX <= r.right;
+    });
+    const to = over?.dataset.tab as Tab | undefined;
+    setDrag((d) => (d && to && to !== d.tab ? { ...d, order: moveTab(d.order, d.tab, d.order.indexOf(to)) } : d));
+  };
+  const onUp = () => {
+    if (dragging.current) {
+      swallow.current = true;
+      if (drag && drag.order.join() !== order.join()) onOrder(drag.order);
+    }
+    end();
+  };
+
   const handlers = (t: Tab) => ({
     onPointerDown: (e: PointerEvent<HTMLButtonElement>) => {
       if (e.button !== 0) return;
       swallow.current = false;
       const mouse = e.pointerType === 'mouse';
-      if (mouse) e.currentTarget.setPointerCapture(e.pointerId);
-      press.current = { tab: t, x: e.clientX, y: e.clientY, mouse, timer: mouse ? undefined : setTimeout(() => pickUp(t), HOLD_MS) };
+      // No capture yet: a plain click must still land on the tab. pickUp captures.
+      press.current = { tab: t, id: e.pointerId, x: e.clientX, y: e.clientY, mouse, timer: mouse ? undefined : setTimeout(() => pickUp(t), HOLD_MS) };
     },
-    onPointerMove: (e: PointerEvent<HTMLButtonElement>) => {
-      const p = press.current;
-      if (!p || p.tab !== t) return;
-      if (!dragging.current) {
-        const moved = Math.hypot(e.clientX - p.x, e.clientY - p.y) > (p.mouse ? 5 : SLOP);
-        if (!moved) return;
-        if (p.mouse) pickUp(t);
-        else {
-          // Moved before the hold: a scroll. Let it be.
-          clearTimeout(p.timer);
-          press.current = null;
-          return;
-        }
-      }
-      // Over another tab: this one takes its place.
-      const over = [...(nav.current?.querySelectorAll<HTMLElement>('[data-tab]') ?? [])].find((b) => {
-        const r = b.getBoundingClientRect();
-        return e.clientX >= r.left && e.clientX <= r.right;
-      });
-      const to = over?.dataset.tab as Tab | undefined;
-      setDrag((d) => (d && to && to !== d.tab ? { ...d, order: moveTab(d.order, d.tab, d.order.indexOf(to)) } : d));
-    },
-    onPointerUp: () => {
-      if (dragging.current) {
-        swallow.current = true;
-        if (drag && drag.order.join() !== order.join()) onOrder(drag.order);
-      }
-      end();
-    },
-    onPointerCancel: end,
     // A held finger would otherwise bring up the browser's menu.
     onContextMenu: (e: React.MouseEvent) => {
       if (press.current && !press.current.mouse) e.preventDefault();
@@ -118,6 +130,9 @@ export default function TabBar({
   return (
     <nav
       ref={nav}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={end}
       className="mb-5 flex gap-1 overflow-x-auto rounded-xl bg-slate-200/70 p-1 dark:bg-slate-800/70"
       aria-label="Sections"
     >

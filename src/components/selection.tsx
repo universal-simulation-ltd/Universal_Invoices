@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { btnDanger, btnGhost, checkboxCls, confirmAction, plural } from './ui';
 
 /**
@@ -54,6 +54,7 @@ export function SelectionBar({
   onDelete,
   onExport,
   onDuplicate,
+  extra,
 }: {
   sel: Selection;
   total: number;
@@ -63,6 +64,8 @@ export function SelectionBar({
   onExport?: (ids: string[]) => void;
   /** "Duplicate" for the ticked rows: a copy of each. */
   onDuplicate?: (ids: string[]) => void | Promise<void>;
+  /** More actions for the ticked rows, after the built-in ones. */
+  extra?: ReactNode;
 }) {
   if (total === 0) return null;
   const n = sel.selected.size;
@@ -102,6 +105,7 @@ export function SelectionBar({
               Export to spreadsheet
             </button>
           )}
+          {extra}
           <button type="button" className={`${btnGhost} py-1.5`} onClick={sel.clear}>
             Clear
           </button>

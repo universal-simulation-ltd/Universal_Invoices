@@ -8,6 +8,7 @@ import {
   companyShareUrl,
   deriveKey,
   followShared,
+  forCopy,
   incomingRows,
   makeCode,
   makeSecret,
@@ -26,6 +27,7 @@ import {
 } from '../lib/companyShare';
 import { uid } from '../lib/convert';
 import { readTombstones } from '../lib/deletions';
+import { linkedTo } from '../lib/soldBy';
 import type { Company } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
 import { useActiveCompany } from './activeCompany';
@@ -142,8 +144,10 @@ export function CompanySharePanel({ companyId }: { companyId: string }) {
   const { user } = useUser();
   const signedIn = isSignedIn(user);
   const company = useAppStore((s) => s.companies.find((c) => c.id === companyId));
-  // Two numbers, not one object: a new object every time would re-render forever.
-  const productCount = useAppStore((s) => s.products.filter((p) => !p.example).length);
+  // Numbers, not one object: a new object every time would re-render forever.
+  // Only the items ticked for this company go; all-companies ones stay (lib/soldBy.ts).
+  const productCount = useAppStore((s) => s.products.filter((p) => !p.example && linkedTo(p, companyId)).length);
+  const unlinkedCount = useAppStore((s) => s.products.filter((p) => !p.example && !p.companyIds?.length).length);
   const clientCount = useAppStore((s) => s.clients.filter((c) => !c.example).length);
   const counts = { products: productCount, clients: clientCount };
   const syncCompany = useAppStore((s) => s.syncCompany);
@@ -185,7 +189,13 @@ export function CompanySharePanel({ companyId }: { companyId: string }) {
           <div className="space-y-2 text-slate-700 dark:text-slate-300">
             <label className="flex items-start gap-2">
               <input type="checkbox" className={`${checkboxCls} mt-0.5`} checked={opts.catalogue} onChange={(e) => setOpts({ ...opts, catalogue: e.target.checked })} />
-              <span>Include the catalogue ({counts.products} item{counts.products === 1 ? '' : 's'})</span>
+              <span>
+                Include its catalogue ({counts.products} item{counts.products === 1 ? '' : 's'} sold by {company.name || 'this company'})
+                <span className="block text-xs text-slate-500 dark:text-slate-400">
+                  Only items ticked for this company under Sold by in Catalogue — never another company’s.
+                  {unlinkedCount > 0 && ` ${unlinkedCount} item${unlinkedCount === 1 ? ' is' : 's are'} for all your companies and ${unlinkedCount === 1 ? 'is' : 'are'} not sent: tick ${company.name || 'this company'} on ${unlinkedCount === 1 ? 'it' : 'them'} to send ${unlinkedCount === 1 ? 'it' : 'them'}.`}
+                </span>
+              </span>
             </label>
             <label className="flex items-start gap-2">
               <input type="checkbox" className={`${checkboxCls} mt-0.5`} checked={opts.clients} onChange={(e) => setOpts({ ...opts, clients: e.target.checked })} />
@@ -235,7 +245,7 @@ export function CompanySharePanel({ companyId }: { companyId: string }) {
           )}
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Anyone with the link{link.code ? ' and the code' : ''} can add this company
-            {link.catalogue && link.clients ? ', your catalogue and your clients' : link.catalogue ? ' and your catalogue' : link.clients ? ' and your clients' : ''} and make documents from it. Changes you make here reach them by themselves. Their documents stay with them.
+            {link.catalogue && link.clients ? ', its catalogue and your clients' : link.catalogue ? ' and its catalogue' : link.clients ? ' and your clients' : ''} and make documents from it. Changes you make here reach them by themselves. Their documents stay with them.
           </p>
           {keptError && <p className="text-red-700 dark:text-red-400">{keptError}</p>}
           <button
@@ -336,7 +346,7 @@ export function CompanyShareSync() {
         const s = useAppStore.getState();
         const deleted = new Set(readTombstones().map((t) => t.id));
         const rows = {
-          products: incomingRows(s.products, payload.products, deleted),
+          products: forCopy(incomingRows(s.products, payload.products, deleted), now.id, s.products),
           folders: incomingRows(s.folders, payload.folders, deleted),
           clients: incomingRows(s.clients, payload.clients, deleted),
         };
@@ -548,7 +558,7 @@ export function SharedCompanyLanding({ id, onDone }: { id: string; onDone: () =>
                 const s = useAppStore.getState();
                 const company = receivedCompany(payload, { id, key, updatedAt }, initials, uid);
                 await takeShared(company, {
-                  products: incomingRows(s.products, payload.products, new Set()),
+                  products: forCopy(incomingRows(s.products, payload.products, new Set()), company.id, s.products),
                   folders: incomingRows(s.folders, payload.folders, new Set()),
                   clients: incomingRows(s.clients, payload.clients, new Set()),
                 });

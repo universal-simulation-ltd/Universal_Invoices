@@ -1,3 +1,4 @@
+import { soldBy } from '../lib/soldBy';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { saveBlob } from '@unisim/media/save';
 import { computeTotals, formatMoney, type BusinessSection } from '@unisim/doc';
@@ -522,7 +523,8 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
           >
             <LinesEditor
               doc={d}
-              products={products}
+              // Its company's catalogue: items ticked for it, and all-companies ones (lib/soldBy.ts).
+              products={products.filter((p) => soldBy(p, d.companyId, companies))}
               folders={folders}
               defaultTaxRate={company?.defaults.taxRate ?? 20}
               onChange={(lines) => edit('lines', { lines })}

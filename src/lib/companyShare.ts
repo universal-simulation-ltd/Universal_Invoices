@@ -23,6 +23,7 @@
 
 import { gunzipSync, gzipSync, strFromU8, strToU8 } from 'fflate';
 import type { LiveField } from './fromOrg';
+import { linkedTo } from './soldBy';
 import type { Client, Company, Folder, Product } from './types';
 
 export const COMPANY_SHARE_MIME = 'application/vnd.unisim.invoices-company+json';
@@ -173,13 +174,26 @@ function sendable(company: Company): Company {
 }
 
 export function buildPayload(company: Company, data: { products: Product[]; folders: Folder[]; clients: Client[] }, opts: { catalogue: boolean; clients: boolean }): CompanySharePayload {
+  // The catalogue items ticked for THIS company — never another company's, and
+  // never an all-companies one (lib/soldBy.ts). Sent without their company
+  // ticks: those are the owner's ids, meaningless at the other end.
+  const products = opts.catalogue
+    ? data.products
+        .filter((p) => !p.example && linkedTo(p, company.id))
+        .map((p) => {
+          const out = { ...p };
+          delete out.companyIds;
+          return out;
+        })
+    : [];
   return {
     app: 'universal-invoices',
     kind: 'company',
     version: PAYLOAD_VERSION,
     company: sendable(company),
-    products: opts.catalogue ? data.products.filter((p) => !p.example) : [],
-    folders: opts.catalogue ? data.folders : [],
+    products,
+    // Only the folders those products sit in: another company's folder names stay here too.
+    folders: data.folders.filter((f) => products.some((p) => p.folderId === f.id)),
     clients: opts.clients ? data.clients.filter((c) => !c.example) : [],
   };
 }
@@ -224,6 +238,15 @@ export function followShared(mine: Company, payload: CompanySharePayload, update
     updatedAt: now,
   };
 }
+
+/**
+ * The owner's catalogue items as they land here: sold by the copy they came
+ * with — or, for one already here, by whichever companies it was ticked for.
+ */
+export const forCopy = (products: Product[], copyId: string, mine: Product[] = []): Product[] => {
+  const have = new Map(mine.map((p) => [p.id, p]));
+  return products.map((p) => ({ ...p, companyIds: have.get(p.id)?.companyIds ?? [copyId] }));
+};
 
 /** Whether following would change anything (so an unchanged link writes nothing). */
 export function sharedDiffers(mine: Company, payload: CompanySharePayload): boolean {

@@ -51,8 +51,9 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   so does deleting the document.
 - **Share a company by link:** signed in, a company's Share gives a link
   that lets someone else make documents from it in their own Universal
-  Invoices — no account needed on their side. Tick to send your catalogue and
-  your clients with it, and to ask for a code as well (`XXXX-XXXX`, sent
+  Invoices — no account needed on their side. Tick to send its catalogue (only
+  the items whose Sold by includes that company — never another company's, nor
+  one for all companies) and your clients with it, and to ask for a code as well (`XXXX-XXXX`, sent
   separately, so the link alone opens nothing). They add a copy to their
   companies, type their initials (added to their numbers, which start at 1, so
   they never match yours), and its details follow your changes while you share
@@ -88,6 +89,11 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   row appears as you type in the last), drop a picture on a product to set it,
   or drop many pictures on the Catalogue tab to make one product each, coded by
   the file name.
+- **Sold by:** each catalogue item says which of your companies sells it; a
+  new one starts with the active company ticked. A document offers its own
+  company's items, plus any with no company ticked (for all your companies —
+  every item made before this). Tick several items to set Sold by for them
+  all at once.
 - **Arrange the catalogue:** drag products by their handle into the order you
   want (a mouse, a finger or the ↑ ↓ keys), make folders and drag products into
   them — tick several and drag one to move them all. "Add from catalogue" on a

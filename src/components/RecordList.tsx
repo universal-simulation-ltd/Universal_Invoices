@@ -42,6 +42,7 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
   onStep,
   folderHead,
   aside,
+  selectionActions,
 }: {
   rows: T[];
   make: () => T;
@@ -83,6 +84,8 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
   folderHead?: (id: string, count: number) => ReactNode;
   /** Beside a row's card, outside its button (Your companies' "Make active"). */
   aside?: (row: T) => ReactNode;
+  /** More actions for the ticked rows, in the selection bar (the catalogue's "Sold by…"). */
+  selectionActions?: (ids: string[], clear: () => void) => ReactNode;
 }) {
   const [dropOn, setDropOn] = useState<string | null>(null);
   const [draft, setDraft] = useState<T | null>(null);
@@ -240,7 +243,7 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
           </button>
           {toolbar}
         </div>
-        {!draft && <SelectionBar sel={sel} total={rows.length} noun={noun} onDelete={onDelete} onExport={onExport} />}
+        {!draft && <SelectionBar sel={sel} total={rows.length} noun={noun} onDelete={onDelete} onExport={onExport} extra={selectionActions?.([...sel.selected], sel.clear)} />}
       </div>
       {isNew && draft && editor(draft)}
       {adding}

@@ -4,7 +4,9 @@ import { arrange, flatten, step } from '../lib/arrange';
 import { uid } from '../lib/convert';
 import { codeFromFileName, isPicture, toStored } from '../lib/picture';
 import type { Folder, NumberStyle, Product } from '../lib/types';
-import { useAppStore } from '../stores/appStore';
+import { ownCompanies, useAppStore } from '../stores/appStore';
+import { companiesOf, withCompanies } from '../lib/soldBy';
+import { useActiveCompany } from './activeCompany';
 import { CatalogueFromBefore } from './FromBefore';
 import Toast from './Toast';
 import ImagePicker from './ImagePicker';
@@ -12,7 +14,7 @@ import UnitSelect from './UnitSelect';
 import { shownUnit } from '../lib/units';
 import { saveSpreadsheet } from './exportSheet';
 import RecordList, { type TreeNode } from './RecordList';
-import { DecimalInput, Field, MoneyInput, btnGhost, btnPrimary, card, confirmAction, inputCls } from './ui';
+import { DecimalInput, Field, MoneyInput, btnGhost, btnPrimary, card, checkboxCls, confirmAction, inputCls, selectBase } from './ui';
 
 const PRODUCT_EDGE = 240;
 
@@ -42,6 +44,39 @@ async function productsFromPictures(files: File[]): Promise<{ made: Product[]; s
 const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes('Files');
 
 /**
+ * Sold by: the companies a catalogue item is for (lib/soldBy.ts). None ticked
+ * = all of them. A company's link sends only the items ticked for it.
+ */
+function SoldBy({ value, onChange }: { value: string[]; onChange: (ids: string[]) => void }) {
+  const companies = ownCompanies(useAppStore((s) => s.companies));
+  if (!companies.length) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-700 dark:text-slate-300">
+      {companies.map((c) => (
+        <label key={c.id} className="inline-flex items-center gap-2">
+          <input
+            type="checkbox"
+            className={checkboxCls}
+            checked={value.includes(c.id)}
+            onChange={(e) => onChange(e.target.checked ? [...value, c.id] : value.filter((id) => id !== c.id))}
+          />
+          {c.name || 'Unnamed company'}
+        </label>
+      ))}
+      <span className="text-xs text-slate-500 dark:text-slate-400">
+        {value.length ? 'Offered on these companies’ documents, and sent with their links.' : 'None ticked: offered for all your companies, and sent by no company’s link.'}
+      </span>
+    </div>
+  );
+}
+
+/** What a new item is sold by: the active company, when there is one. */
+function useNewSoldBy(): string[] {
+  const { active } = useActiveCompany();
+  return active && !active.example ? [active.id] : [];
+}
+
+/**
  * Add many at once (James, 2026-10-30: "when start typing in one, add another
  * product box beneath in case they want to do many"). Rows, not the full
  * form: the last row filling in adds a blank one under it, and Save keeps the
@@ -50,6 +85,7 @@ const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes('Files');
 function NewProducts({ style, onDone }: { style: NumberStyle; onDone: () => void }) {
   const addProducts = useAppStore((s) => s.addProducts);
   const [rows, setRows] = useState<Product[]>(() => [blankProduct()]);
+  const [soldBy, setSoldBy] = useState<string[]>(useNewSoldBy());
   const [over, setOver] = useState(false);
   const ready = rows.filter(filled);
 
@@ -129,13 +165,17 @@ function NewProducts({ style, onDone }: { style: NumberStyle; onDone: () => void
           </div>
         </div>
       ))}
+      <div>
+        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Sold by</span>
+        <SoldBy value={soldBy} onChange={setSoldBy} />
+      </div>
       <div className="flex flex-wrap gap-2 pt-1">
         <button
           type="button"
           className={btnPrimary}
           disabled={!ready.length}
           onClick={async () => {
-            await addProducts(ready);
+            await addProducts(ready.map((p) => withCompanies(p, soldBy)));
             onDone();
           }}
         >
@@ -205,6 +245,9 @@ function FolderTitle({ folder, count, fresh, onRenamed }: { folder: Folder; coun
 
 export default function CatalogueView() {
   const { products, folders, companies, saveProduct, deleteMany, loadExample, duplicateRow, addProducts, saveFolder, moveInCatalogue } = useAppStore();
+  const newSoldBy = useNewSoldBy();
+  const mine = ownCompanies(companies);
+  const nameOf = new Map(mine.map((c) => [c.id, c.name || 'Unnamed company']));
   const [adding, setAdding] = useState(false);
   /** The folder just made: its name opens for typing. */
   const [fresh, setFresh] = useState<string | null>(null);
@@ -235,7 +278,7 @@ export default function CatalogueView() {
   /** Pictures dropped on the tab, not on a product: one new product each. */
   const dropPictures = async (files: File[]) => {
     const { made, skipped } = await productsFromPictures(files);
-    if (made.length) await addProducts(made);
+    if (made.length) await addProducts(made.map((p) => withCompanies(p, newSoldBy)));
     setNotice(
       [
         made.length ? `Added ${made.length} product${made.length === 1 ? '' : 's'} from pictures, each coded by its file name — open one to add its price.` : '',
@@ -289,7 +332,41 @@ export default function CatalogueView() {
           </button>
         }
         noun="product"
-        make={blankProduct}
+        make={() => withCompanies(blankProduct(), newSoldBy)}
+        // Ticked items: tick a company for them all, or make them for all companies.
+        selectionActions={
+          mine.length
+            ? (ids, clear) => (
+                <select
+                  className={`${selectBase} py-1.5 text-sm`}
+                  value=""
+                  aria-label="Sold by"
+                  onChange={async (e) => {
+                    const pick = e.target.value;
+                    if (!pick) return;
+                    for (const p of products.filter((x) => ids.includes(x.id))) {
+                      const have = companiesOf(p, companies);
+                      await saveProduct(withCompanies(p, pick === '*' ? [] : pick.startsWith('-') ? have.filter((id) => id !== pick.slice(1)) : [...have, pick]));
+                    }
+                    clear();
+                  }}
+                >
+                  <option value="">Sold by…</option>
+                  {mine.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      + {c.name || 'Unnamed company'}
+                    </option>
+                  ))}
+                  {mine.map((c) => (
+                    <option key={`-${c.id}`} value={`-${c.id}`}>
+                      − {c.name || 'Unnamed company'}
+                    </option>
+                  ))}
+                  <option value="*">All companies (none ticked)</option>
+                </select>
+              )
+            : undefined
+        }
         emptyText="What you sell, with its price and picture. A line on a document starts from here, then you can change it there. Drop pictures here to make a product of each."
         onSave={saveProduct}
         onDelete={(ids) => deleteMany('products', ids)}
@@ -323,6 +400,12 @@ export default function CatalogueView() {
             <div className="min-w-0 flex-1">
               <div className="font-medium text-slate-900 dark:text-slate-100">{p.code || 'No code'}</div>
               <div className="truncate text-sm text-slate-500 dark:text-slate-400">{p.description.split('\n')[0]}</div>
+              {/* Which companies it is for — worth saying once there is more than one, or once it is ticked. */}
+              {(mine.length > 1 || companiesOf(p, companies).length > 0) && !p.example && (
+                <div className="truncate text-xs text-slate-500 dark:text-slate-400">
+                  {companiesOf(p, companies).length ? companiesOf(p, companies).map((id) => nameOf.get(id) ?? '').filter(Boolean).join(' · ') : 'All companies'}
+                </div>
+              )}
             </div>
             <div className="tabular text-right text-sm">
               <div className="font-semibold text-slate-900 dark:text-slate-100">{formatMoney(p.unitPrice, currency, style, true)}</div>
@@ -354,6 +437,12 @@ export default function CatalogueView() {
                 <DecimalInput value={p.taxRate} onChange={(taxRate) => set({ taxRate })} placeholder="—" />
               </Field>
             </div>
+            {mine.length > 0 && (
+              <div className="sm:col-start-2">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Sold by</span>
+                <SoldBy value={companiesOf(p, companies)} onChange={(ids) => set({ companyIds: ids.length ? ids : undefined })} />
+              </div>
+            )}
           </div>
         )}
       />

@@ -143,6 +143,11 @@ export interface Product {
   image?: StoredImage;
   /** The catalogue folder it sits in (lib/arrange.ts); unknown or gone = the top level. */
   folderId?: string;
+  /**
+   * The companies it is sold by (lib/soldBy.ts). None = all your companies:
+   * offered on every company's documents, but sent by no company's link.
+   */
+  companyIds?: string[];
   /** Its place in its folder or at the top level, dragged into place. None yet = after the placed ones, by code. */
   order?: number;
   updatedAt: number;

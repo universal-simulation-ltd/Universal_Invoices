@@ -11,6 +11,8 @@ import type {
   TaxMode,
 } from '@unisim/doc';
 
+import type { CompanyShareLink, SharedFrom } from './companyShare';
+
 export type { BusinessDocKind, BusinessDocLanguage, CurrencyCode, NumberStyle, TaxMode };
 
 /**
@@ -92,6 +94,16 @@ export interface Company {
   footer: string[];
   defaults: CompanyDefaults;
   numbering: Record<BusinessDocKind, Numbering>;
+  /**
+   * Its link, when you have shared it (lib/companyShare.ts): the row and the
+   * secret, kept here so each of your devices keeps the link current.
+   */
+  shareLink?: CompanyShareLink;
+  /**
+   * Added from someone else's link: its details follow theirs while the link
+   * lasts; documents made from it stay with you.
+   */
+  sharedFrom?: SharedFrom;
   updatedAt: number;
 }
 

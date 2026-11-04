@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { imageToJpeg } from '@unisim/doc';
 import { useOrg, useProfile, useUser } from '@unisim/sdk';
+import { SHARED_FIELDS } from '../lib/companyShare';
 import { uid } from '../lib/convert';
 import { companyFromOrg, hubFieldsDiffer, liveFields, type LiveField, type OrgDetails } from '../lib/fromOrg';
 import type { Company, StoredImage } from '../lib/types';
@@ -36,7 +37,8 @@ export function useLiveOrg(): { org: OrgDetails | null; liveFor: (c: Company) =>
   const fields = live ? liveFields(live) : null;
   return {
     org: live,
-    liveFor: (c) => (live && fields && c.orgId === live.id ? fields : new Set()),
+    // A company from someone's link follows theirs, signed in or not, until they stop sharing it.
+    liveFor: (c) => (c.sharedFrom && !c.sharedFrom.ended ? (SHARED_FIELDS as Set<LiveField>) : live && fields && c.orgId === live.id ? fields : new Set()),
   };
 }
 

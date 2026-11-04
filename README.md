@@ -49,6 +49,15 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   as you edit. It is **private** — it opens only for you, signed in — until
   you tick *Anyone with the link can open it*; *Stop sharing* deletes it, and
   so does deleting the document.
+- **Share a company by link:** signed in, a company's Share gives a link
+  that lets someone else make documents from it in their own Universal
+  Invoices — no account needed on their side. Tick to send your catalogue and
+  your clients with it, and to ask for a code as well (`XXXX-XXXX`, sent
+  separately, so the link alone opens nothing). They add a copy to their
+  companies, type their initials (added to their numbers, which start at 1, so
+  they never match yours), and its details follow your changes while you share
+  it. Their documents stay with them; you never see them. *Stop sharing*
+  deletes the link; copies already added stay, as they were.
 - **Bank accounts:** a company has its main account and can add more; a
   document's From section picks one, and its bank lines can be edited for
   that document alone.
@@ -132,6 +141,13 @@ copied into it.
 **Share links.** A document's link holds its PDF on your Universal ID, read
 back only through a check that it is shared or yours. Private until you share
 it; stopping sharing, or deleting the document, deletes the copy.
+
+**Company links.** A shared company (with its catalogue and clients, if you
+chose to send them) is encrypted in your browser before it is stored on your
+Universal ID: the key is in the part of the link after `#`, which browsers do
+not send to the server, mixed with the code when you asked for one. So the
+server keeps data it cannot read. Whoever has the link (and code) can read
+it — that is the point. The documents they make are never uploaded to you.
 
 ## How it is built
 

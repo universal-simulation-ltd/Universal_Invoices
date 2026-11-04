@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useUniversal, useUser } from '@unisim/sdk';
+import { companyRef } from '../lib/companyShare';
 import { pdfFileName } from '../lib/convert';
 import { renderPdf } from '../lib/pdf';
 import { shareHooks } from '../lib/shareHooks';
@@ -188,8 +189,10 @@ export function ShareCleanup() {
   useEffect(() => {
     if (!user) return;
     shareHooks.deleted = (ids) => void supabase.from('app_shares').delete().eq('product', PRODUCT).in('ref_id', ids);
+    shareHooks.companiesDeleted = (ids) => void supabase.from('app_shares').delete().eq('product', PRODUCT).in('ref_id', ids.map(companyRef));
     return () => {
       shareHooks.deleted = undefined;
+      shareHooks.companiesDeleted = undefined;
     };
   }, [supabase, user]);
   return null;

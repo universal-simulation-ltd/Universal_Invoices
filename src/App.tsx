@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DefaultViewSelect, UniversalAppsNavBar, UpdateNotice, useDefaultView, useUser, useUserPrefs } from '@unisim/sdk';
 import ProductLogo from './components/Header/ProductLogo';
 import AppMenu from './components/Header/AppMenu';
@@ -15,6 +15,7 @@ import CloudBackup from './components/CloudBackup';
 import SharedDocument from './components/SharedDocument';
 import Toast from './components/Toast';
 import { ShareCleanup } from './components/ShareLink';
+import { CompanyShareSync, SharedCompanyLanding } from './components/CompanyShare';
 import { cloudFooter } from './components/cloudText';
 import { useAppStore, type Tab } from './stores/appStore';
 import { useThemeStore } from './stores/themeStore';
@@ -29,6 +30,8 @@ const REPO_URL = 'https://github.com/universal-simulation-ltd/Universal_Invoices
 
 // A share link (ShareLink.tsx) opens the shared PDF instead of the app.
 const SHARE_ID = new URLSearchParams(location.search).get('share');
+// A company's link (CompanyShare.tsx) opens the page that adds it.
+const COMPANY_LINK = new URLSearchParams(location.search).get('company');
 
 export default function App() {
   const { init, loaded, tab, setTab, openId, documents, notice, dismissNotice } = useAppStore();
@@ -50,6 +53,13 @@ export default function App() {
   const { user, loading } = useUser();
   const account = user && !(user as { is_anonymous?: boolean }).is_anonymous ? user.id : null;
   const opened = useRef(false);
+  const [companyLink, setCompanyLink] = useState(COMPANY_LINK);
+  // Done with the link: back to the app, without the link (or its key) in the address bar.
+  const leaveCompanyLink = () => {
+    history.replaceState(null, '', import.meta.env.BASE_URL);
+    setCompanyLink(null);
+    setTab('documents');
+  };
   useEffect(() => {
     if (loading) return;
     void init(account).then(() => {
@@ -95,12 +105,16 @@ export default function App() {
         {/* Signed in: a copy on the Universal ID, kept up to date. */}
         <CloudBackup />
         <ShareCleanup />
+        {/* Your company links kept current; companies shared with you kept up to date. */}
+        <CompanyShareSync />
       </div>
 
       <main className={`${CONTAINER} flex-1 py-4 sm:py-6`}>
 
         {SHARE_ID ? (
           <SharedDocument id={SHARE_ID} />
+        ) : companyLink ? (
+          <SharedCompanyLanding id={companyLink} onDone={leaveCompanyLink} />
         ) : (
           <>
         {!openDoc && (

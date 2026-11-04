@@ -73,6 +73,12 @@ interface AppState {
    */
   syncCompany: (c: Company) => Promise<void>;
   /**
+   * A company from someone's link (lib/companyShare.ts), with the catalogue
+   * and clients that came with it: added the first time, brought up to date
+   * after. Merges; never deletes.
+   */
+  takeShared: (company: Company, rows: { products: Product[]; folders: Folder[]; clients: Client[] }) => Promise<void>;
+  /**
    * Two copies of the same live company (two devices each made one before
    * the online copy met): keeps the one most documents come from, moves the
    * rest of the documents onto it and deletes the others everywhere —
@@ -321,6 +327,19 @@ export const useAppStore = create<AppState>((set, get) => {
       await putMany({ products: p, folders: f });
     },
     syncCompany: (c) => saveRow('companies', c),
+    takeShared: async (company, rows) => {
+      const s = get();
+      set({
+        companies: upsert(s.companies, company),
+        products: rows.products.reduce(upsert, s.products),
+        folders: rows.folders.reduce(upsert, s.folders),
+        clients: rows.clients.reduce(upsert, s.clients),
+      });
+      await putMany({ companies: [company], ...rows });
+      await dropExample('companies');
+      if (rows.products.length) await dropExample('products');
+      if (rows.clients.length) await dropExample('clients');
+    },
     mergeLiveCopies: async (orgId) => {
       const { companies, documents } = get();
       const copies = companies.filter((c) => c.orgId === orgId);
@@ -344,6 +363,9 @@ export const useAppStore = create<AppState>((set, get) => {
       delete copy.example;
       delete copy.orgId;
       delete copy.orgLogoUrl;
+      // A copy is yours: not shared by link, and not following someone else's.
+      delete (copy as { shareLink?: unknown }).shareLink;
+      delete (copy as { sharedFrom?: unknown }).sharedFrom;
       if (table === 'products') copy.description = `${copy.description} (copy)`;
       else copy.name = `${copy.name} (copy)`;
       await saveRow(table, copy);
@@ -358,6 +380,9 @@ export const useAppStore = create<AppState>((set, get) => {
       recordDeleted(table, (get()[table] as { id: string; example?: boolean }[]).filter((r) => gone.has(r.id) && !r.example).map((r) => r.id));
       if (table === 'companies') {
         for (const c of get().companies) if (gone.has(c.id) && c.orgId) setOrgDismissed(c.orgId, true);
+        // A company's link goes with it.
+        const linked = get().companies.filter((c) => gone.has(c.id) && c.shareLink).map((c) => c.id);
+        if (linked.length) shareHooks.companiesDeleted?.(linked);
       }
       if (table === 'documents') {
         for (const id of ids) {

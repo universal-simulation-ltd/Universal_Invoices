@@ -6,6 +6,7 @@ import { useActiveCompany } from './activeCompany';
 import ImagePicker from './ImagePicker';
 import FromBefore from './FromBefore';
 import { HUB_DETAILS, OrgRestore, useLiveOrg } from './OrgSync';
+import { CompanySharePanel } from './CompanyShare';
 import { saveSpreadsheet } from './exportSheet';
 import RecordList from './RecordList';
 import { DecimalInput, Field, LinesInput, SyncedChip, btnGhost, inputCls, labelCls, liveInputCls, sectionTitle, selectCls } from './ui';
@@ -51,7 +52,15 @@ export default function CompaniesView() {
       noun="company"
       make={blankCompany}
       emptyText="The company your documents come from. Add more than one if you trade under more than one name."
-      onSave={saveCompany}
+      // The link fields are not in the form: whatever the stored row has now
+      // (a link made while the form was open, a copy brought up to date) stays.
+      onSave={(c) => {
+        const stored = companies.find((x) => x.id === c.id);
+        const draft = { ...c, shareLink: stored?.shareLink, sharedFrom: stored?.sharedFrom };
+        if (!draft.shareLink) delete draft.shareLink;
+        if (!draft.sharedFrom) delete draft.sharedFrom;
+        return saveCompany(draft);
+      }}
       canSave={(c) => c.name.trim() !== ''}
       onDelete={(ids) => deleteMany('companies', ids)}
       onExample={() => void loadExample('companies')}
@@ -86,6 +95,7 @@ export default function CompaniesView() {
           : `Delete ${c.name || 'this company'}?`;
         // The live one: say it will not come back by itself.
         if (c.orgId && liveFor(c).size) return `${base} It stops following your Universal ID company; you can add it back from this tab.`;
+        if (c.shareLink) return `${base} Its link stops working too. Whoever added it from the link keeps their copy.`;
         return base;
       }}
       summary={(c) => (
@@ -112,7 +122,23 @@ export default function CompaniesView() {
         const back = encodeURIComponent(window.location.href);
         return (
           <div className="space-y-6">
-            {lf.size > 0 && org && (
+            {c.sharedFrom && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-sky-200 bg-sky-50/70 px-3 py-2 text-sm text-slate-700 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-slate-300">
+                {c.sharedFrom.ended ? (
+                  <span className="min-w-0 flex-1">
+                    Shared with you by link. Its owner has stopped sharing it, so it no longer changes by itself — it is yours to edit.
+                  </span>
+                ) : (
+                  <>
+                    <SyncedChip />
+                    <span className="min-w-0 flex-1">
+                      Shared with you by link: the tinted boxes follow its owner’s changes. The documents you make from it stay with you — its owner does not see them.
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+            {lf.size > 0 && org && c.orgId === org.id && (
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-sky-200 bg-sky-50/70 px-3 py-2 text-sm text-slate-700 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-slate-300">
                 <SyncedChip />
                 <span className="min-w-0 flex-1">
@@ -253,6 +279,9 @@ export default function CompaniesView() {
                 })}
               </div>
             </div>
+
+            {/* A saved company of your own can be shared by link (CompanyShare.tsx). */}
+            <CompanySharePanel companyId={c.id} />
           </div>
         );
       }}

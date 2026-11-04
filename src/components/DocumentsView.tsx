@@ -10,7 +10,7 @@ import ImportPdfButton from './ImportPdfButton';
 import NewDocumentButton from './NewDocumentButton';
 import { saveSpreadsheet } from './exportSheet';
 import { SelectCheckbox, SelectionBar, useSelection, type Selection } from './selection';
-import { EmptyState, ExampleChip, btnGhost, exampleBorder, inputCls, selectBase } from './ui';
+import { EmptyState, ExampleChip, btnGhost, exampleBorder, inputCls } from './ui';
 
 
 function total(doc: InvoiceDoc): string {
@@ -18,8 +18,6 @@ function total(doc: InvoiceDoc): string {
   const t = computeTotals(doc);
   return formatMoney(t.gross, doc.currency, doc.numberStyle, wantsDecimals({ ...doc, decimals: undefined }));
 }
-
-const OTHERS = '__others';
 
 /**
  * One document in the list. On its own it shows its client; in a journey the
@@ -116,7 +114,7 @@ function JourneyGroup({ docs, sel, open, folded, onToggle }: { docs: InvoiceDoc[
 }
 
 export default function DocumentsView() {
-  const { companies, documents, createDocument, open, loadExample, deleteMany, duplicate } = useAppStore();
+  const { companies, documents, createDocument, open, setTab, loadExample, deleteMany, duplicate } = useAppStore();
   // The sidebar's kind. A double tap makes it what Documents opens on.
   const shows = useDefaultView<DocumentsViewKind>('documents-kind', 'all', { views: DOCUMENTS_VIEW_VALUES });
   const [kind, setKind] = useState<DocumentsViewKind>(shows.defaultView);
@@ -133,9 +131,9 @@ export default function DocumentsView() {
   const mine = ownCompanies(companies);
   // One company's documents at a time (James, 2026-11-03: "show a dropdown of
   // the available companies and in the list only show the documents from
-  // that company, don't put them all together"). The dropdown IS the active
-  // company — the one new documents come from, as in Your companies.
-  const { active: fromCompany, setActive } = useActiveCompany();
+  // that company, don't put them all together"). It is the active company —
+  // the one new documents come from, picked in Your companies.
+  const { active: fromCompany } = useActiveCompany();
   const hint = useScrollHint<HTMLElement>();
   // Documents whose company has been deleted get an entry of their own.
   const [others, setOthers] = useState(false);
@@ -173,30 +171,28 @@ export default function DocumentsView() {
       <ImportPdfButton kind={kind} companyId={fromCompany?.id} />
     </>
   );
-  const from = (mine.length > 1 || orphans > 0) && fromCompany && (
-    <label className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-      Company
-      {/* A long name ends in "…" rather than pushing the toolbar about. */}
-      <select
-        className={`${selectBase} truncate`}
-        style={{ maxWidth: '16rem' }}
-        title={showOthers ? undefined : fromCompany.name}
-        value={showOthers ? OTHERS : fromCompany.id}
-        aria-label="Company"
-        onChange={(e) => {
-          const v = e.target.value;
-          setOthers(v === OTHERS);
-          if (v !== OTHERS) setActive(v);
-        }}
-      >
-        {mine.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name || 'Unnamed company'}
-          </option>
-        ))}
-        {orphans > 0 && <option value={OTHERS}>From deleted companies ({orphans})</option>}
-      </select>
-    </label>
+  // No picker here (James, 2026-11-04): the company is named, and changing it
+  // is Your companies' "Make active".
+  const link = 'font-medium text-slate-800 underline hover:text-orange-700 dark:text-slate-200 dark:hover:text-orange-400';
+  const from = fromCompany && (
+    <p className="flex min-w-0 flex-wrap items-center gap-x-2 text-sm text-slate-500 dark:text-slate-400">
+      {showOthers ? (
+        <span>From deleted companies</span>
+      ) : (
+        // A long name ends in "…" rather than pushing the toolbar about.
+        <span className="truncate" style={{ maxWidth: '16rem' }} title={fromCompany.name}>
+          From {fromCompany.name || 'Unnamed company'}
+        </span>
+      )}
+      <button type="button" className={link} onClick={() => setTab('companies')}>
+        Change company?
+      </button>
+      {orphans > 0 && (
+        <button type="button" className={link} onClick={() => setOthers(!showOthers)}>
+          {showOthers ? `Back to ${fromCompany.name || 'Unnamed company'}` : `From deleted companies (${orphans})`}
+        </button>
+      )}
+    </p>
   );
 
   if (documents.length === 0) {

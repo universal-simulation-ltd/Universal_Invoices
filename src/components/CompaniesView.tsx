@@ -50,6 +50,7 @@ export default function CompaniesView() {
     <RecordList<Company>
       rows={companies}
       noun="company"
+      addBelow
       make={blankCompany}
       emptyText="The company your documents come from. Add more than one if you trade under more than one name."
       // The link fields are not in the form: whatever the stored row has now

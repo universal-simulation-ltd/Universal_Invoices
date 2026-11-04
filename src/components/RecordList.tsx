@@ -43,6 +43,7 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
   folderHead,
   aside,
   selectionActions,
+  addBelow = false,
 }: {
   rows: T[];
   make: () => T;
@@ -86,6 +87,11 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
   aside?: (row: T) => ReactNode;
   /** More actions for the ticked rows, in the selection bar (the catalogue's "Sold by…"). */
   selectionActions?: (ids: string[], clear: () => void) => ReactNode;
+  /**
+   * "Add a …" under the list, its form opening there, and orange only while
+   * there is none of your own yet (Your companies; James, 2026-11-04).
+   */
+  addBelow?: boolean;
 }) {
   const [dropOn, setDropOn] = useState<string | null>(null);
   const [draft, setDraft] = useState<T | null>(null);
@@ -240,22 +246,31 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
       </div>
     );
 
+  const addButton = (
+    <button
+      type="button"
+      className={addBelow && rows.some((r) => !r.example) ? btnGhost : btnPrimary}
+      disabled={draft !== null || !!adding}
+      onClick={() => (onAdd ? onAdd() : setDraft(make()))}
+    >
+      <Key>
+        <PlusIcon />
+      </Key>
+      Add a {noun}
+    </button>
+  );
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={btnPrimary} disabled={draft !== null || !!adding} onClick={() => (onAdd ? onAdd() : setDraft(make()))}>
-            <Key>
-              <PlusIcon />
-            </Key>
-            Add a {noun}
-          </button>
+          {!addBelow && addButton}
           {toolbar}
         </div>
         {!draft && <SelectionBar sel={sel} total={rows.length} noun={noun} onDelete={onDelete} onExport={onExport} extra={selectionActions?.([...sel.selected], sel.clear)} />}
       </div>
-      {isNew && draft && editor(draft)}
-      {adding}
+      {!addBelow && isNew && draft && editor(draft)}
+      {!addBelow && adding}
       {rows.length === 0 && !draft && !adding && (
         <EmptyState
           title={`No ${plural(noun)} yet`}
@@ -337,6 +352,7 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
           })
         : rows.map((row) => rowView(row, null))}
       {tree && lineAt(null, null)}
+      {addBelow && (isNew && draft ? editor(draft) : adding || <div>{addButton}</div>)}
     </div>
   );
 }

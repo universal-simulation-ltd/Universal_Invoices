@@ -6,6 +6,7 @@ import { DOCUMENTS_VIEWS, DOCUMENTS_VIEW_VALUES, type DocumentsView as Documents
 import { KIND_NAMES, kindPlural, type InvoiceDoc } from '../lib/types';
 import { ownCompanies, useAppStore } from '../stores/appStore';
 import { useActiveCompany } from './activeCompany';
+import CompanySwitcher from './CompanySwitcher';
 import ImportPdfButton from './ImportPdfButton';
 import NewDocumentButton from './NewDocumentButton';
 import { saveSpreadsheet } from './exportSheet';
@@ -132,8 +133,8 @@ export default function DocumentsView() {
   // One company's documents at a time (James, 2026-11-03: "show a dropdown of
   // the available companies and in the list only show the documents from
   // that company, don't put them all together"). It is the active company —
-  // the one new documents come from, picked in Your companies.
-  const { active: fromCompany } = useActiveCompany();
+  // the one new documents come from, as in Your companies.
+  const { active: fromCompany, setActive } = useActiveCompany();
   const hint = useScrollHint<HTMLElement>();
   // Documents whose company has been deleted get an entry of their own.
   const [others, setOthers] = useState(false);
@@ -171,28 +172,21 @@ export default function DocumentsView() {
       <ImportPdfButton kind={kind} companyId={fromCompany?.id} />
     </>
   );
-  // No picker here (James, 2026-11-04): the company is named, and changing it
-  // is Your companies' "Make active".
-  const link = 'font-medium text-slate-800 underline hover:text-orange-700 dark:text-slate-200 dark:hover:text-orange-400';
+  // The active company by its logo; a click lists them all, with theirs
+  // (James, 2026-11-04). Picking one there is Your companies' "Make active".
   const from = fromCompany && (
-    <p className="flex min-w-0 flex-wrap items-center gap-x-2 text-sm text-slate-500 dark:text-slate-400">
-      {showOthers ? (
-        <span>From deleted companies</span>
-      ) : (
-        // A long name ends in "…" rather than pushing the toolbar about.
-        <span className="truncate" style={{ maxWidth: '16rem' }} title={fromCompany.name}>
-          From {fromCompany.name || 'Unnamed company'}
-        </span>
-      )}
-      <button type="button" className={link} onClick={() => setTab('companies')}>
-        Change company?
-      </button>
-      {orphans > 0 && (
-        <button type="button" className={link} onClick={() => setOthers(!showOthers)}>
-          {showOthers ? `Back to ${fromCompany.name || 'Unnamed company'}` : `From deleted companies (${orphans})`}
-        </button>
-      )}
-    </p>
+    <CompanySwitcher
+      companies={mine}
+      active={fromCompany}
+      others={showOthers}
+      orphans={orphans}
+      onPick={(id) => {
+        setOthers(false);
+        setActive(id);
+      }}
+      onOthers={() => setOthers(true)}
+      onManage={() => setTab('companies')}
+    />
   );
 
   if (documents.length === 0) {
@@ -224,7 +218,7 @@ export default function DocumentsView() {
     // The kinds are a sidebar beside the list from md up, and a sideways row of
     // chips above it on a phone (cut off at the edge, with a fade, so it reads
     // as a row that scrolls — the suite rule).
-    <div className="grid gap-4 md:grid-cols-[12rem_minmax(0,1fr)] md:gap-6">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-[12rem_minmax(0,1fr)] md:gap-6">
       <nav
         ref={hint.ref}
         aria-label="Kinds of document"

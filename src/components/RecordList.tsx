@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Target } from '../lib/arrange';
 import { DragHandle, DropLine, useArrangeDrag } from './arrange';
 import { SelectCheckbox, SelectionBar, useSelection } from './selection';
-import { EmptyState, ExampleChip, SyncedChip, btnDanger, plural, btnGhost, btnPrimary, card, confirmAction, exampleBorder, liveBorder } from './ui';
+import { BinIcon, CheckIcon, EmptyState, ExampleChip, Key, PlusIcon, SyncedChip, btnDanger, plural, btnGhost, btnPrimary, card, confirmAction, exampleBorder, liveBorder } from './ui';
 
 /**
  * The shape the Clients, Catalogue and Companies tabs share: a list, one row
@@ -145,6 +145,9 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
             setDraft(null);
           }}
         >
+          <Key>
+            <CheckIcon />
+          </Key>
           Save
         </button>
         <button type="button" className={btnGhost} onClick={() => setDraft(null)}>
@@ -172,6 +175,9 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
               setDraft(null);
             }}
           >
+            <Key>
+              <BinIcon />
+            </Key>
             Delete
           </button>
         )}
@@ -239,6 +245,9 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           <button type="button" className={btnPrimary} disabled={draft !== null || !!adding} onClick={() => (onAdd ? onAdd() : setDraft(make()))}>
+            <Key>
+              <PlusIcon />
+            </Key>
             Add a {noun}
           </button>
           {toolbar}

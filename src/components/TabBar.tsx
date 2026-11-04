@@ -133,7 +133,7 @@ export default function TabBar({
       onPointerMove={onMove}
       onPointerUp={onUp}
       onPointerCancel={end}
-      className="mb-5 flex gap-1 overflow-x-auto rounded-xl bg-slate-200/70 p-1 dark:bg-slate-800/70"
+      className="u-tabs mb-5"
       aria-label="Sections"
     >
       {tabs.map((t) => (
@@ -152,13 +152,9 @@ export default function TabBar({
             onTab(t);
           }}
           aria-current={tab === t ? 'page' : undefined}
-          className={`shrink-0 select-none rounded-lg px-4 py-2 text-sm font-medium transition-colors [-webkit-touch-callout:none] data-[default-view=true]:ring-2 data-[default-view=true]:ring-orange-400 ${
-            drag?.tab === t ? 'cursor-grabbing opacity-50 ring-2 ring-orange-500' : ''
-          } ${
-            tab === t
-              ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100'
-              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
-          }`}
+          // The suite's tray tabs (SDK 0.216, BRANDING.md → Tabs): aria-current
+          // selects, and buttonProps' data-default-view draws the opens-here dot.
+          className={`u-tab ${drag?.tab === t ? 'cursor-grabbing opacity-50' : ''}`}
         >
           {tabLabel(t)}
         </button>

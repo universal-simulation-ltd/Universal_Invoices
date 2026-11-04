@@ -233,7 +233,7 @@ export default function DocumentsView() {
         ref={hint.ref}
         aria-label="Kinds of document"
         style={hint.style}
-        className={`${hint.className} -mx-1 flex gap-1 overflow-x-auto px-1 md:mx-0 md:flex-col md:self-start md:overflow-visible md:px-0`}
+        className={`u-tabs ${hint.className} md:flex-col md:self-start md:overflow-visible`}
       >
         {DOCUMENTS_VIEWS.map((v) => {
           const on = kind === v.value;
@@ -247,14 +247,10 @@ export default function DocumentsView() {
                 setKind(v.value);
               }}
               aria-current={on ? 'true' : undefined}
-              className={`flex shrink-0 select-none items-center justify-between gap-3 rounded-full px-3 py-1.5 text-sm font-medium transition-colors md:rounded-lg md:py-2 data-[default-view=true]:ring-2 data-[default-view=true]:ring-orange-400 ${
-                on
-                  ? 'bg-orange-700 text-white md:bg-white md:text-slate-900 md:shadow-sm dark:md:bg-slate-900 dark:md:text-slate-100'
-                  : 'bg-white text-slate-600 hover:text-slate-900 md:bg-transparent md:hover:bg-slate-200/70 dark:bg-slate-900 dark:text-slate-400 dark:hover:text-slate-100 dark:md:bg-transparent dark:md:hover:bg-slate-800/70'
-              }`}
+              className="u-tab justify-between gap-3"
             >
               <span className="whitespace-nowrap">{v.label}</span>
-              <span className={`tabular text-xs ${on ? 'opacity-80 md:text-orange-700 md:opacity-100 dark:md:text-orange-400' : 'text-slate-400 dark:text-slate-500'}`}>{counts[v.value] ?? 0}</span>
+              <span className={`tabular text-xs ${on ? '' : 'opacity-75'}`}>{counts[v.value] ?? 0}</span>
             </button>
           );
         })}

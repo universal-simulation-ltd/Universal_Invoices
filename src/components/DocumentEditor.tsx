@@ -365,7 +365,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
       <DocumentJourney doc={doc} />
 
       {/* Phone: one pane at a time. */}
-      <div className="flex gap-1 rounded-lg bg-slate-200 p-1 lg:hidden dark:bg-slate-800" role="tablist">
+      <div className="u-tabs w-full lg:hidden" role="tablist" aria-label="Pane">
         {(['edit', 'preview'] as const).map((p) => (
           <button
             key={p}
@@ -373,7 +373,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
             role="tab"
             aria-selected={pane === p}
             onClick={() => setPane(p)}
-            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium ${pane === p ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400'}`}
+            className="u-tab flex-1 justify-center"
           >
             {p === 'edit' ? 'Edit' : 'Preview'}
           </button>
@@ -643,7 +643,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
               Unsaved: {SECTIONS.filter((x) => dirty.has(x)).map((x) => SECTION_TITLES[x]).join(', ')}
               <span className="hidden sm:inline"> — not in the preview yet</span>
             </span>
-            <button type="button" className={`${btnPrimary} shrink-0 py-1.5`} onClick={() => save(dirty)}>
+            <button type="button" className={`${btnPrimary} shrink-0 u-btn--sm`} onClick={() => save(dirty)}>
               Save all
             </button>
           </div>
@@ -729,10 +729,10 @@ function Section({
         {!collapsed && actions}
         {dirty && (
           <>
-            <button type="button" className={`${btnGhost} py-1.5`} data-keep onPointerDown={onHold} onClick={onCancel}>
+            <button type="button" className={`${btnGhost} u-btn--sm`} data-keep onPointerDown={onHold} onClick={onCancel}>
               Cancel
             </button>
-            <button type="button" className={`${btnPrimary} py-1.5`} onClick={onSave}>
+            <button type="button" className={`${btnPrimary} u-btn--sm`} onClick={onSave}>
               Save
             </button>
           </>

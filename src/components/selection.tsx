@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { btnDanger, btnGhost, checkboxCls, confirmAction, plural } from './ui';
+import { BinIcon, Key, btnDanger, btnGhost, checkboxCls, confirmAction, plural } from './ui';
 
 /**
  * Select several rows of a list, then act on them together — the suite rule
@@ -79,19 +79,22 @@ export function SelectionBar({
         <>
           <button
             type="button"
-            className={`${btnDanger} py-1.5`}
+            className={`${btnDanger} u-btn--sm`}
             onClick={async () => {
               if (!confirmAction(`Delete ${n} ${n === 1 ? noun : plural(noun)}? This cannot be undone.`)) return;
               await onDelete([...sel.selected]);
               sel.clear();
             }}
           >
+            <Key>
+              <BinIcon />
+            </Key>
             Delete selected
           </button>
           {onDuplicate && (
             <button
               type="button"
-              className={`${btnGhost} py-1.5`}
+              className={`${btnGhost} u-btn--sm`}
               onClick={async () => {
                 await onDuplicate([...sel.selected]);
                 sel.clear();
@@ -101,12 +104,12 @@ export function SelectionBar({
             </button>
           )}
           {onExport && (
-            <button type="button" className={`${btnGhost} py-1.5`} onClick={() => onExport([...sel.selected])}>
+            <button type="button" className={`${btnGhost} u-btn--sm`} onClick={() => onExport([...sel.selected])}>
               Export to spreadsheet
             </button>
           )}
           {extra}
-          <button type="button" className={`${btnGhost} py-1.5`} onClick={sel.clear}>
+          <button type="button" className={`${btnGhost} u-btn--sm`} onClick={sel.clear}>
             Clear
           </button>
         </>

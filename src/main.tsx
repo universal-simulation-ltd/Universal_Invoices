@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { UniversalProvider, UsageTracker } from '@unisim/sdk';
+import { UniversalProvider, UsageTracker, installButtonStyles, installTabStyles } from '@unisim/sdk';
 import App from './App';
 import './index.css';
 
@@ -23,6 +23,10 @@ const universalConfig = {
   product: 'invoices' as const,
   cookieDomain: import.meta.env.PROD ? '.unisim.co.uk' : undefined,
 };
+
+// The suite's key buttons and tray tabs, used as class strings (ui.tsx, TabBar).
+installButtonStyles();
+installTabStyles();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

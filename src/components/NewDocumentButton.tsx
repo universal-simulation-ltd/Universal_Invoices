@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { KIND_HINTS, KIND_NAMES, KIND_ORDER, type BusinessDocKind } from '../lib/types';
-import { btnPrimary } from './ui';
+import { Key, PlusIcon, btnPrimary } from './ui';
 
 /**
  * The one "New" button on Documents (James, 2026-11-03: "a button for new
@@ -37,6 +37,9 @@ export default function NewDocumentButton({ kind, onNew }: { kind: BusinessDocKi
   if (kind !== 'all') {
     return (
       <button type="button" className={btnPrimary} onClick={() => onNew(kind)}>
+        <Key>
+          <PlusIcon />
+        </Key>
         New {KIND_NAMES[kind].toLowerCase()}
       </button>
     );
@@ -55,11 +58,14 @@ export default function NewDocumentButton({ kind, onNew }: { kind: BusinessDocKi
     <div ref={wrap} className="relative">
       <button
         type="button"
-        className={`${btnPrimary} inline-flex items-center gap-1.5`}
+        className={btnPrimary}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
+        <Key>
+          <PlusIcon />
+        </Key>
         New document
         <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden className={`transition-transform ${open ? 'rotate-180' : ''}`}>
           <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />

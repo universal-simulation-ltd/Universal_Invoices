@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import type { BusinessDocKind } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
 import { readAttachment } from './attachments';
-import { btnGhost } from './ui';
+import { Key, UploadIcon, btnGhost } from './ui';
 
 /**
  * "Import PDF" (James, 2026-11-03): a quote, estimate or invoice made
@@ -41,6 +41,9 @@ export default function ImportPdfButton({ kind, companyId }: { kind: BusinessDoc
   return (
     <>
       <button type="button" className={btnGhost} disabled={busy} onClick={() => input.current?.click()}>
+        <Key>
+          <UploadIcon />
+        </Key>
         {busy ? 'Reading…' : 'Import PDF'}
       </button>
       <input

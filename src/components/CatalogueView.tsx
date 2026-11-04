@@ -14,7 +14,7 @@ import UnitSelect from './UnitSelect';
 import { shownUnit } from '../lib/units';
 import { saveSpreadsheet } from './exportSheet';
 import RecordList, { type TreeNode } from './RecordList';
-import { DecimalInput, Field, MoneyInput, btnGhost, btnPrimary, card, checkboxCls, confirmAction, inputCls, selectBase } from './ui';
+import { DecimalInput, Field, FolderIcon, Key, MoneyInput, btnGhost, btnPrimary, card, checkboxCls, confirmAction, inputCls, selectBase } from './ui';
 
 const PRODUCT_EDGE = 240;
 
@@ -328,6 +328,9 @@ export default function CatalogueView() {
         }}
         toolbar={
           <button type="button" className={btnGhost} disabled={adding} onClick={() => void newFolder()}>
+            <Key>
+              <FolderIcon />
+            </Key>
             New folder
           </button>
         }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Company } from '../lib/types';
 
 /** A company's logo, or its first letter on a tile when it has none. */
@@ -40,6 +40,28 @@ export default function CompanySwitcher({
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const menu = useRef<HTMLDivElement>(null);
+  // Sideways nudge that keeps the open list on the page: it hangs from the
+  // trigger's left edge, which near the right of the toolbar runs off it.
+  const shift = useRef(0);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    shift.current = 0; // a fresh list, not yet nudged
+    const place = () => {
+      const el = menu.current;
+      if (!el) return;
+      const gutter = 16;
+      // Where it would sit unnudged, then the nudge that brings it inside.
+      const left = el.getBoundingClientRect().left - shift.current;
+      const right = left + el.offsetWidth;
+      const page = document.documentElement.clientWidth;
+      shift.current = right > page - gutter ? Math.max(gutter - left, page - gutter - right) : left < gutter ? gutter - left : 0;
+      el.style.transform = shift.current ? `translateX(${shift.current}px)` : '';
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;

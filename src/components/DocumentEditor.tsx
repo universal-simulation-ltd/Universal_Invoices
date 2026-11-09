@@ -2,6 +2,7 @@ import { soldBy } from '../lib/soldBy';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { saveBlob } from '@unisim/media/save';
 import { computeTotals, formatMoney, type BusinessSection } from '@unisim/doc';
+import { GrowingTextarea } from '@unisim/sdk';
 import { clientFromSnapshot, clientSnapshot, issuerSnapshot, pdfFileName, pdfFingerprint } from '../lib/convert';
 import { renderPdf } from '../lib/pdf';
 import { KIND_NAMES, type InvoiceDoc } from '../lib/types';
@@ -571,7 +572,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                 </div>
               )}
               <Field label="Notes" className="sm:col-span-2">
-                <textarea className={`${inputCls} resize-y`} rows={3} value={d.notes} onChange={(e) => edit('terms', { notes: e.target.value })} />
+                <GrowingTextarea className={`${inputCls} resize-y`} rows={3} value={d.notes} onChange={(e) => edit('terms', { notes: e.target.value })} />
               </Field>
               {d.kind !== 'delivery-note' && (
                 <>

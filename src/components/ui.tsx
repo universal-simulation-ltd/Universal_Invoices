@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { buttonClass } from '@unisim/sdk';
+import { buttonClass, GrowingTextarea } from '@unisim/sdk';
 import { discountInputValue, moneyInputValue, parseDecimal, parseDiscount, parseMoney } from '../lib/money';
 import type { Discount, NumberStyle } from '../lib/types';
 
@@ -60,7 +60,7 @@ export function Field({ label, children, hint, className = '' }: { label: string
 /** One text box per line — addresses, bank details, the footer. */
 export function LinesInput({ value, onChange, rows = 4, placeholder, live = false }: { value: string[]; onChange: (v: string[]) => void; rows?: number; placeholder?: string; live?: boolean }) {
   return (
-    <textarea
+    <GrowingTextarea
       className={live ? `${liveInputCls} resize-none` : `${inputCls} resize-y`}
       readOnly={live}
       rows={rows}

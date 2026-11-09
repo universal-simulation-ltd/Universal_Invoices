@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, type DragEvent } from 'react';
 import { formatMoney } from '@unisim/doc';
+import { GrowingTextarea } from '@unisim/sdk';
 import { arrange, flatten, step } from '../lib/arrange';
 import { uid } from '../lib/convert';
 import { codeFromFileName, isPicture, toStored } from '../lib/picture';
@@ -427,7 +428,7 @@ export default function CatalogueView() {
               <input className={inputCls} value={p.code} onChange={(e) => set({ code: e.target.value })} autoFocus />
             </Field>
             <Field label="Description" className="sm:col-start-2">
-              <textarea className={`${inputCls} resize-y`} rows={3} value={p.description} onChange={(e) => set({ description: e.target.value })} />
+              <GrowingTextarea className={`${inputCls} resize-y`} rows={3} value={p.description} onChange={(e) => set({ description: e.target.value })} />
             </Field>
             <div className="grid gap-3 sm:col-start-2 sm:grid-cols-3">
               <Field label="Unit">

@@ -1,3 +1,4 @@
+import { GrowingTextarea } from '@unisim/sdk';
 import { uid } from '../lib/convert';
 import { defaultNumbering, formatNumber, todayIso } from '../lib/numbering';
 import { KIND_NAMES, KIND_ORDER, type BankAccount, type Company } from '../lib/types';
@@ -255,7 +256,7 @@ export default function CompaniesView() {
                   <DecimalInput value={d.dueDays} onChange={(v) => setDefaults({ dueDays: Math.max(0, Math.round(v ?? 0)) })} />
                 </Field>
                 <Field label="Notes" className="sm:col-span-2">
-                  <textarea className={`${inputCls} resize-y`} rows={2} value={d.notes} onChange={(e) => setDefaults({ notes: e.target.value })} />
+                  <GrowingTextarea className={`${inputCls} resize-y`} rows={2} value={d.notes} onChange={(e) => setDefaults({ notes: e.target.value })} />
                 </Field>
               </div>
             </div>

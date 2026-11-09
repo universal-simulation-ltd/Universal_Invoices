@@ -1,4 +1,5 @@
 import { computeTotals, formatMoney, wantsDecimals } from '@unisim/doc';
+import { GrowingTextarea } from '@unisim/sdk';
 import { arrange } from '../lib/arrange';
 import { blankLine, lineFromProduct } from '../lib/convert';
 import type { DocLine, Discount, Folder, InvoiceDoc, Product } from '../lib/types';
@@ -66,11 +67,11 @@ export default function LinesEditor({
             <ImagePicker compact value={line.image} onChange={(image) => set(i, { image })} maxEdge={240} label="picture" choices={pictures} />
             <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[9rem_minmax(0,1fr)]">
               <input className={inputCls} placeholder="Code" aria-label="Code" value={line.code} onChange={(e) => set(i, { code: e.target.value })} />
-              <textarea
-                // Grows with its text where the browser can (field-sizing); two
-                // rows otherwise, so a phone shows more than half a line.
-                className={`${inputCls} resize-y [field-sizing:content]`}
-                rows={Math.min(5, Math.max(2, line.description.split('\n').length))}
+              <GrowingTextarea
+                // Grows with its text (SDK); two rows to start, so a phone
+                // shows more than half a line.
+                className={`${inputCls} resize-y`}
+                rows={2}
                 placeholder="Description"
                 aria-label="Description"
                 value={line.description}

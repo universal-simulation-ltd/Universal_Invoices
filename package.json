@@ -17,7 +17,7 @@
     "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
-    "@unisim/doc": "^0.17.0",
+    "@unisim/doc": "^0.19.0",
     "@unisim/media": "^0.8.1",
     "@unisim/sdk": "^0.218.2",
     "fflate": "^0.8.3",

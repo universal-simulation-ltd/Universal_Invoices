@@ -19,16 +19,19 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   count each; pick one to see only those, and the New button makes that kind.
   On All, **New document** opens the five with a line on what each is for.
   Double-tap a kind to make Documents open on it.
-- **The editor:** each section (From, Document, Client, Lines, Terms and
-  notes) folds away, and keeps its edits until its own **Save** (or
+- **The editor:** each section (From, Document, Client, Lines, Payment
+  details — the payment terms and bank — and Notes and more) folds away, and keeps its edits until its own **Save** (or
   ⌘/Ctrl+S) — then the preview redraws; Download saves first. Hover a
   section, or type in it, and the preview marks and scrolls to the part of
   the PDF it fills in. The notes print as a full-width box under the totals.
 - **Editing on the page:** click a line on the preview to edit it in a card
   under the row, or drag it up or down to move it (on a phone, hold it, then
-  drag). Click the company, the document's number and dates, the client or
-  the notes and terms, and that section's fields open on the page the same
-  way. Leaving the card saves, and the page redraws.
+  drag). Click the company, the document's number and dates, the client, the
+  payment terms and bank, or the notes, and that section's fields open on the
+  page the same way. Leaving the card saves, and the page redraws. *+ From
+  catalogue* under the last row opens your catalogue as pictures, a group per
+  folder (folded when the catalogue is big) with a search: each tap adds a
+  line, Done saves them.
 - **Sign:** opens Universal Signatures over the document; draw or pick your
   signature, place it, Sign — the signed copy comes back and is kept with the
   document. While the document is unchanged, the preview, Download and Share

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNod
 import { saveBlob } from '@unisim/media/save';
 import { computeTotals, formatMoney, type BusinessSection } from '@unisim/doc';
 import { GrowingTextarea, useUserPrefs } from '@unisim/sdk';
-import { arrange, cataloguePictures, flatten } from '../lib/arrange';
+import { cataloguePictures } from '../lib/arrange';
 import { blankLine, clientFromSnapshot, clientSnapshot, issuerSnapshot, lineFromProduct, pdfFileName, pdfFingerprint } from '../lib/convert';
 import { renderPdf } from '../lib/pdf';
 import { KIND_NAMES, type DocLine, type InvoiceDoc, type VersionReason } from '../lib/types';
@@ -12,6 +12,7 @@ import { frenchEInvoicing } from '../lib/france';
 import { FRENCH_NOTE_SEEN } from './shownKinds';
 import { useAppStore } from '../stores/appStore';
 import { fileSize, openAttachment } from './attachments';
+import CataloguePicker from './CatalogueAdd';
 import CurrencyConvert from './CurrencyConvert';
 import DocumentJourney from './DocumentJourney';
 import DocumentVersions from './DocumentVersions';
@@ -32,34 +33,42 @@ import { ExampleChip, Field, LinesInput, btnGhost, btnPrimary, card, confirmActi
  * when clicking out of box"), when it saves itself and the preview flashes
  * what changed.
  */
-type SectionId = 'from' | 'document' | 'client' | 'lines' | 'terms';
+type SectionId = 'from' | 'document' | 'client' | 'lines' | 'payment' | 'terms';
 const FIELDS: Record<SectionId, (keyof InvoiceDoc)[]> = {
   from: ['issuer'],
   document: ['number', 'date', 'validUntil', 'dueDate', 'subject'],
   client: ['clientId', 'client'],
   lines: ['lines', 'discount'],
-  terms: ['paymentTerms', 'notes', 'taxMode', 'currency', 'taxNote', 'language', 'numberStyle', 'signature'],
+  // Payment details and Notes and more were one section, "Terms and notes",
+  // until 2026-11-10 (James: "split terms and notes into two separate
+  // sections", and "use 'Notes and more' instead as payment terms will go in
+  // new payment section"). The id stays `terms` so folded state carries over.
+  payment: ['paymentTerms'],
+  terms: ['notes', 'taxMode', 'currency', 'taxNote', 'language', 'numberStyle', 'signature'],
 };
 const PDF_PARTS: Record<SectionId, BusinessSection[]> = {
   from: ['issuer'],
   document: ['document'],
   client: ['client'],
   lines: ['lines', 'totals'],
-  terms: ['notes', 'terms', 'signature'],
+  // `payment` is the payment terms and bank rows (@unisim/doc 0.19.0); `terms`
+  // is what older renderers tagged the payment terms with.
+  payment: ['payment', 'terms'],
+  terms: ['notes', 'signature'],
 };
 const SECTIONS = Object.keys(FIELDS) as SectionId[];
-const SECTION_TITLES: Record<SectionId, string> = { from: 'From', document: 'Document', client: 'Client', lines: 'Lines', terms: 'Terms and notes' };
+const SECTION_TITLES: Record<SectionId, string> = { from: 'From', document: 'Document', client: 'Client', lines: 'Lines', payment: 'Payment details', terms: 'Notes and more' };
 
 /** `doc` with `section`'s fields taken from `from`. Keys set to undefined are kept, so clearing a date saves. */
 function withFields(doc: InvoiceDoc, from: InvoiceDoc, sections: Iterable<SectionId>): InvoiceDoc {
   const out = { ...doc } as Record<string, unknown>;
   for (const s of sections) {
     for (const k of FIELDS[s]) out[k] = from[k];
-    // The bank lines print with the terms, so they are edited — and saved —
-    // in Terms and notes; the rest of `issuer` is From's (James, 2026-11-03).
+    // The bank lines print with the payment terms, so they are edited — and
+    // saved — in Payment details; the rest of `issuer` is From's (James, 2026-11-03).
     const issuer = out.issuer as InvoiceDoc['issuer'];
     if (s === 'from') out.issuer = { ...from.issuer, bank: issuer.bank };
-    if (s === 'terms') out.issuer = { ...issuer, bank: from.issuer.bank };
+    if (s === 'payment') out.issuer = { ...issuer, bank: from.issuer.bank };
   }
   return out as unknown as InvoiceDoc;
 }
@@ -68,7 +77,7 @@ function withFields(doc: InvoiceDoc, from: InvoiceDoc, sections: Iterable<Sectio
 const SECTION_OF = Object.fromEntries(SECTIONS.flatMap((id) => PDF_PARTS[id].map((part) => [part, id]))) as Record<BusinessSection, SectionId>;
 
 /** The parts of the PDF a click edits on the page itself, and the section whose fields open there (lines have their own editor). */
-const ON_PAGE: Partial<Record<BusinessSection, Exclude<SectionId, 'lines'>>> = { issuer: 'from', document: 'document', client: 'client', notes: 'terms', terms: 'terms', signature: 'terms' };
+const ON_PAGE: Partial<Record<BusinessSection, Exclude<SectionId, 'lines'>>> = { issuer: 'from', document: 'document', client: 'client', payment: 'payment', terms: 'payment', notes: 'terms', signature: 'terms' };
 const ON_PAGE_PARTS = Object.keys(ON_PAGE) as BusinessSection[];
 
 /**
@@ -303,6 +312,9 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
     edit('lines', { lines: [...draft.lines, line] });
     setLineOpen(draft.lines.length);
   };
+  // The catalogue picker (CatalogueAdd.tsx): its tiles add lines without
+  // opening them, so several go in at once; closing it saves, and the page redraws.
+  const [picking, setPicking] = useState(false);
 
   // Versions (lib/versions.ts). What is being edited is saved first, so a
   // version is of the document as the form reads now.
@@ -344,9 +356,9 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
         className={btnGhost}
         title="This document keeps the company details it was made with. Take the current ones instead."
         onClick={() => {
-          // Its bank too, which is Terms and notes' to save.
+          // Its bank too, which is Payment details' to save.
           edit('from', { issuer: issuerSnapshot(company) });
-          edit('terms', {});
+          edit('payment', {});
         }}
       >
         Use current company details
@@ -460,11 +472,12 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
       </div>
     </>
   );
-  const termsBody = (
+  // Payment details: none on a delivery note, which has no prices.
+  const paymentBody = (
     <div className="grid gap-3 sm:grid-cols-2">
       {d.kind !== 'delivery-note' && (
         <Field label="Payment terms" className="sm:col-span-2">
-          <input className={inputCls} value={d.paymentTerms} onChange={(e) => edit('terms', { paymentTerms: e.target.value })} />
+          <input className={inputCls} value={d.paymentTerms} onChange={(e) => edit('payment', { paymentTerms: e.target.value })} />
         </Field>
       )}
       {/* The bank this document is paid into (James, 2026-11-03: "select
@@ -480,7 +493,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                 value={bankChoice}
                 onChange={(e) => {
                   const lines = e.target.value === 'main' ? company.bank : company.moreBanks!.find((b) => b.id === e.target.value)?.lines;
-                  if (lines) edit('terms', { issuer: { ...d.issuer, bank: [...lines] } });
+                  if (lines) edit('payment', { issuer: { ...d.issuer, bank: [...lines] } });
                 }}
               >
                 <option value="main">Main account{company.bank[0] ? ` — ${company.bank[0]}` : ''}</option>
@@ -494,10 +507,15 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
             </Field>
           )}
           <Field label="Bank details on this document" hint="Changes here are for this document only — the company keeps its own.">
-            <LinesInput rows={3} value={d.issuer.bank} onChange={(bank) => edit('terms', { issuer: { ...d.issuer, bank } })} />
+            <LinesInput rows={3} value={d.issuer.bank} onChange={(bank) => edit('payment', { issuer: { ...d.issuer, bank } })} />
           </Field>
         </div>
       )}
+    </div>
+  );
+
+  const termsBody = (
+    <div className="grid gap-3 sm:grid-cols-2">
       <Field label="Notes" className="sm:col-span-2">
         <GrowingTextarea className={`${inputCls} resize-y`} rows={3} value={d.notes} onChange={(e) => edit('terms', { notes: e.target.value })} />
       </Field>
@@ -761,7 +779,13 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
             />
           </Section>
 
-          <Section {...section('terms')} title="Terms and notes" summary={d.paymentTerms || d.notes.split('\n')[0]}>
+          {d.kind !== 'delivery-note' && (
+            <Section {...section('payment')} title="Payment details" summary={d.paymentTerms || d.issuer.bank[0]}>
+              {paymentBody}
+            </Section>
+          )}
+
+          <Section {...section('terms')} title="Notes and more" summary={d.notes.split('\n')[0]}>
             {termsBody}
           </Section>
         </div>
@@ -786,7 +810,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                       <h3 className={`${sectionTitle} mr-auto`}>{SECTION_TITLES[partSection]}</h3>
                       {partSection === 'from' ? fromActions : partSection === 'client' ? clientActions : null}
                     </div>
-                    {partSection === 'from' ? fromBody : partSection === 'document' ? documentBody : partSection === 'client' ? clientBody : termsBody}
+                    {partSection === 'from' ? fromBody : partSection === 'document' ? documentBody : partSection === 'client' ? clientBody : partSection === 'payment' ? paymentBody : termsBody}
                     {partSection === 'from' && <p className="text-xs text-slate-500 dark:text-slate-400">The company’s own details are changed in Your companies.</p>}
                     <div className="flex justify-end">
                       <button type="button" className={btnPrimary} onClick={() => openPart(null)}>
@@ -837,22 +861,9 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                       + Add line
                     </button>
                     {catalogue.length > 0 && (
-                      <select
-                        className={`${selectBase} bg-white/90 py-1 text-xs dark:bg-slate-900/90`}
-                        value=""
-                        aria-label="Add a line from your catalogue"
-                        onChange={(e) => {
-                          const p = catalogue.find((x) => x.id === e.target.value);
-                          if (p) addLine(lineFromProduct(p));
-                        }}
-                      >
-                        <option value="">+ From catalogue…</option>
-                        {flatten(arrange(catalogue, folders)).map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {[p.code, p.description.split('\n')[0]].filter(Boolean).join(' — ').slice(0, 80)}
-                          </option>
-                        ))}
-                      </select>
+                      <button type="button" className={`${btnGhost} bg-white/90 py-1 text-xs dark:bg-slate-900/90`} onClick={() => setPicking(true)} aria-haspopup="dialog">
+                        + From catalogue
+                      </button>
                     )}
                     {removed && Date.now() - removed.at < 10_000 && (
                       <span className="flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1 text-xs text-white shadow dark:bg-slate-100 dark:text-slate-900">
@@ -878,6 +889,19 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
           </div>
         </div>
       </div>
+
+      {picking && (
+        <CataloguePicker
+          catalogue={catalogue}
+          folders={folders}
+          doc={d}
+          onAdd={(p) => edit('lines', { lines: [...draft.lines, lineFromProduct(p)] })}
+          onClose={() => {
+            setPicking(false);
+            if (dirty.has('lines')) save(['lines']);
+          }}
+        />
+      )}
 
       {/* Unsaved edits, wherever you are on the page: what, and Save all. */}
       {dirty.size > 0 && (

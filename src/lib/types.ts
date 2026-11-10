@@ -4,7 +4,7 @@
 
 import type {
   BusinessDiscount,
-  BusinessDocKind,
+  BusinessDocKind as AnyBusinessDocKind,
   BusinessDocLanguage,
   CurrencyCode,
   NumberStyle,
@@ -13,7 +13,13 @@ import type {
 
 import type { CompanyShareLink, SharedFrom } from './companyShare';
 
-export type { BusinessDocKind, BusinessDocLanguage, CurrencyCode, NumberStyle, TaxMode };
+export type { BusinessDocLanguage, CurrencyCode, NumberStyle, TaxMode };
+
+/**
+ * The five kinds this app makes. @unisim/doc 0.18 added a packing list for
+ * Universal Exports; it is not one of Invoices' documents.
+ */
+export type BusinessDocKind = Exclude<AnyBusinessDocKind, 'packing-list'>;
 
 /**
  * A percentage, or an amount in minor units — per unit on a line, off the

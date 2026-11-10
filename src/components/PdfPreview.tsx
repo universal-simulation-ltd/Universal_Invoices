@@ -3,7 +3,7 @@ import { BUSINESS_PAGE, businessLineRows, businessSections, layoutBusinessDoc, t
 import { changedBoxes } from '../lib/changes';
 
 const PAD = 4; // points around a part's box
-const PART_NAMES: Record<BusinessSection, string> = { issuer: 'From', document: 'Document', client: 'Client', lines: 'Lines', totals: 'Totals', notes: 'Notes', terms: 'Terms', signature: 'Signature' };
+const PART_NAMES: Record<BusinessSection, string> = { issuer: 'From', document: 'Document', client: 'Client', lines: 'Lines', totals: 'Totals', notes: 'Notes', payment: 'Payment details', terms: 'Payment details', signature: 'Signature' };
 import { toBusinessDoc } from '../lib/convert';
 import { renderPdf } from '../lib/pdf';
 import type { InvoiceDoc } from '../lib/types';

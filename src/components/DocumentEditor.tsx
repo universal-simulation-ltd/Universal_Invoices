@@ -17,12 +17,12 @@ import CurrencyConvert from './CurrencyConvert';
 import DocumentJourney from './DocumentJourney';
 import DocumentVersions from './DocumentVersions';
 import LineFields from './LineFields';
-import LinesEditor from './LinesEditor';
+import LinesSummary, { TotalsFields } from './LinesSummary';
 import MoreMenu, { menuItem } from './MoreMenu';
 import PdfPreview from './PdfPreview';
 import ShareLink from './ShareLink';
 import SignDialog, { type Signed } from './SignDialog';
-import { ExampleChip, Field, LinesInput, btnGhost, btnPrimary, card, confirmAction, inputCls, sectionTitle, selectBase, selectCls } from './ui';
+import { ExampleChip, Field, LinesInput, btnGhost, btnPrimary, card, confirmAction, inputCls, sectionTitle, selectBase, selectCls, useMedia } from './ui';
 
 /**
  * The form's sections, the fields each one edits, and the parts of the PDF it
@@ -77,7 +77,8 @@ function withFields(doc: InvoiceDoc, from: InvoiceDoc, sections: Iterable<Sectio
 const SECTION_OF = Object.fromEntries(SECTIONS.flatMap((id) => PDF_PARTS[id].map((part) => [part, id]))) as Record<BusinessSection, SectionId>;
 
 /** The parts of the PDF a click edits on the page itself, and the section whose fields open there (lines have their own editor). */
-const ON_PAGE: Partial<Record<BusinessSection, Exclude<SectionId, 'lines'>>> = { issuer: 'from', document: 'document', client: 'client', payment: 'payment', terms: 'payment', notes: 'terms', signature: 'terms' };
+// The totals open the document-wide discount (2026-11-10), which is the Lines section's.
+const ON_PAGE: Partial<Record<BusinessSection, SectionId>> = { totals: 'lines', issuer: 'from', document: 'document', client: 'client', payment: 'payment', terms: 'payment', notes: 'terms', signature: 'terms' };
 const ON_PAGE_PARTS = Object.keys(ON_PAGE) as BusinessSection[];
 
 /**
@@ -259,6 +260,9 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
   // PDF preview"): the row whose editor is open, and the last one removed,
   // for its Undo.
   const [lineOpen, setLineOpen] = useState<number | null>(null);
+  // A line opened from the Lines section where the preview cannot take it (a
+  // phone's form pane, a signed copy on show): its fields open under its row.
+  const [formLine, setFormLine] = useState<number | null>(null);
   const [removed, setRemoved] = useState<{ line: DocLine; index: number; at: number } | null>(null);
   // The rest of the page, the same way (backlog, 2026-11-10: "parties, dates
   // and notes on the page"): the part whose section's fields are open on it.
@@ -266,6 +270,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
   const partSection = partOpen ? ON_PAGE[partOpen] : undefined;
   useEffect(() => {
     setLineOpen(null);
+    setFormLine(null);
     setPartOpen(null);
     setRemoved(null);
   }, [doc.id]);
@@ -276,6 +281,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
   }, [removed]);
   const catalogue = products.filter((p) => soldBy(p, doc.companyId, companies));
   const pictures = cataloguePictures(catalogue, folders);
+  const onPage = useMedia('(min-width: 1024px)') && !signedCurrent;
   // The page redraws when an edit is saved: on Done, on another row, and when
   // the cursor leaves the editor — as leaving a box in the form does.
   const saveLines = () => {
@@ -328,6 +334,68 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
   };
 
   const d = draft;
+  // A line's fields: in the card on the preview, or under its row in the Lines section.
+  const lineEditor = (i: number | null, setOpen: (n: number | null) => void, done: () => void) =>
+    i !== null && d.lines[i] && (
+      <>
+        <LineFields
+          key={d.lines[i].id}
+          doc={d}
+          index={i}
+          pictures={pictures}
+          total={formatMoney(computeTotals(d).lines[i], d.currency, d.numberStyle, true)}
+          autoFocus
+          onSet={(patch) => edit('lines', { lines: d.lines.map((l, n) => (n === i ? { ...l, ...patch } : l)) })}
+          onMove={(by) => {
+            const next = [...d.lines];
+            const [line] = next.splice(i, 1);
+            next.splice(i + by, 0, line);
+            edit('lines', { lines: next });
+            setOpen(i + by);
+          }}
+          onRemove={() => {
+            setRemoved({ line: d.lines[i], index: i, at: Date.now() });
+            edit('lines', { lines: d.lines.filter((_, n) => n !== i) });
+            setOpen(null);
+          }}
+        />
+        <div className="mt-3 flex justify-end">
+          <button type="button" className={btnPrimary} onClick={done}>
+            Done
+          </button>
+        </div>
+      </>
+    );
+  // A row of the Lines section: the card on the preview where it can take it,
+  // else the fields under the row.
+  const openFromList = (i: number) => {
+    if (onPage) return openLine(i === lineOpen ? null : i);
+    saveLines();
+    setFormLine(i === formLine ? null : i);
+  };
+  const removedChip = removed && Date.now() - removed.at < 10_000 && (
+    <span className="flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1 text-xs text-white shadow dark:bg-slate-100 dark:text-slate-900">
+      Line removed
+      <button
+        type="button"
+        className="font-semibold underline"
+        onClick={() => {
+          const next = [...d.lines];
+          next.splice(Math.min(removed.index, next.length), 0, removed.line);
+          edit('lines', { lines: next });
+          setRemoved(null);
+        }}
+      >
+        Undo
+      </button>
+    </span>
+  );
+  const addBlank = () => {
+    const line = blankLine(d.taxMode === 'standard' ? (company?.defaults.taxRate ?? 20) : undefined);
+    if (onPage) return addLine(line);
+    edit('lines', { lines: [...draft.lines, line] });
+    setFormLine(draft.lines.length);
+  };
   const dated = d.kind === 'invoice' ? 'dueDate' : d.kind === 'delivery-note' ? null : 'validUntil';
   const expired = dated === 'validUntil' && !!d.validUntil && d.validUntil <= d.date;
   // Which of the company's accounts the document's bank lines are, if any.
@@ -732,7 +800,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className={`space-y-4 ${pane === 'edit' ? '' : 'hidden lg:block'}`}>
           {/* From, first (James, 2026-10-30): who the document is from decides
               everything under it. Not a choice here (2026-10-31): a document
@@ -765,17 +833,30 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
             summary={`${d.lines.length} line${d.lines.length === 1 ? '' : 's'}${d.kind === 'delivery-note' ? '' : ` · ${formatMoney(computeTotals(d).gross, d.currency, d.numberStyle, true)}`}`}
           >
             <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
-              <span className="lg:hidden">Or tap a line under Preview to edit it there; hold it, then drag, to move it.</span>
-              <span className="hidden lg:inline">Or click a line on the preview to edit it there, or drag it to move it.</span>
+              {onPage ? 'Click a line to edit it on the preview, or drag it there to move it.' : 'Tap a line to edit it. Under Preview, tap one there, or hold it and drag to move it.'}
             </p>
-            <LinesEditor
+            <LinesSummary
               doc={d}
-              // Its company's catalogue: items ticked for it, and all-companies ones (lib/soldBy.ts).
-              products={products.filter((p) => soldBy(p, d.companyId, companies))}
-              folders={folders}
-              defaultTaxRate={company?.defaults.taxRate ?? 20}
-              onChange={(lines) => edit('lines', { lines })}
+              open={onPage ? lineOpen : formLine}
+              editor={onPage ? null : lineEditor(formLine, setFormLine, () => {
+                saveLines();
+                setFormLine(null);
+              })}
+              onOpen={openFromList}
               onDiscount={(discount) => edit('lines', { discount })}
+              actions={
+                <>
+                  <button type="button" className={btnGhost} onClick={addBlank}>
+                    + Add line
+                  </button>
+                  {catalogue.length > 0 && (
+                    <button type="button" className={btnGhost} onClick={() => setPicking(true)} aria-haspopup="dialog">
+                      + From catalogue
+                    </button>
+                  )}
+                  {!onPage && removedChip}
+                </>
+              }
             />
           </Section>
 
@@ -807,10 +888,10 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                 editor: partSection && (
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className={`${sectionTitle} mr-auto`}>{SECTION_TITLES[partSection]}</h3>
+                      <h3 className={`${sectionTitle} mr-auto`}>{partSection === 'lines' ? 'Totals' : SECTION_TITLES[partSection]}</h3>
                       {partSection === 'from' ? fromActions : partSection === 'client' ? clientActions : null}
                     </div>
-                    {partSection === 'from' ? fromBody : partSection === 'document' ? documentBody : partSection === 'client' ? clientBody : partSection === 'payment' ? paymentBody : termsBody}
+                    {partSection === 'lines' ? <TotalsFields doc={d} onDiscount={(discount) => edit('lines', { discount })} /> : partSection === 'from' ? fromBody : partSection === 'document' ? documentBody : partSection === 'client' ? clientBody : partSection === 'payment' ? paymentBody : termsBody}
                     {partSection === 'from' && <p className="text-xs text-slate-500 dark:text-slate-400">The company’s own details are changed in Your companies.</p>}
                     <div className="flex justify-end">
                       <button type="button" className={btnPrimary} onClick={() => openPart(null)}>
@@ -825,36 +906,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                 onOpen: openLine,
                 onLeave: saveLines,
                 onMoveTo: moveLine,
-                editor: lineOpen !== null && d.lines[lineOpen] && (
-                  <>
-                    <LineFields
-                      key={d.lines[lineOpen].id}
-                      doc={d}
-                      index={lineOpen}
-                      pictures={pictures}
-                      total={formatMoney(computeTotals(d).lines[lineOpen], d.currency, d.numberStyle, true)}
-                      autoFocus
-                      onSet={(patch) => edit('lines', { lines: d.lines.map((l, n) => (n === lineOpen ? { ...l, ...patch } : l)) })}
-                      onMove={(by) => {
-                        const next = [...d.lines];
-                        const [line] = next.splice(lineOpen, 1);
-                        next.splice(lineOpen + by, 0, line);
-                        edit('lines', { lines: next });
-                        setLineOpen(lineOpen + by);
-                      }}
-                      onRemove={() => {
-                        setRemoved({ line: d.lines[lineOpen], index: lineOpen, at: Date.now() });
-                        edit('lines', { lines: d.lines.filter((_, n) => n !== lineOpen) });
-                        setLineOpen(null);
-                      }}
-                    />
-                    <div className="mt-3 flex justify-end">
-                      <button type="button" className={btnPrimary} onClick={() => openLine(null)}>
-                        Done
-                      </button>
-                    </div>
-                  </>
-                ),
+                editor: lineEditor(lineOpen, setLineOpen, () => openLine(null)),
                 add: (
                   <>
                     <button type="button" className={`${btnGhost} bg-white/90 py-1 text-xs dark:bg-slate-900/90`} onClick={() => addLine(blankLine(d.taxMode === 'standard' ? (company?.defaults.taxRate ?? 20) : undefined))}>
@@ -865,23 +917,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                         + From catalogue
                       </button>
                     )}
-                    {removed && Date.now() - removed.at < 10_000 && (
-                      <span className="flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1 text-xs text-white shadow dark:bg-slate-100 dark:text-slate-900">
-                        Line removed
-                        <button
-                          type="button"
-                          className="font-semibold underline"
-                          onClick={() => {
-                            const next = [...d.lines];
-                            next.splice(Math.min(removed.index, next.length), 0, removed.line);
-                            edit('lines', { lines: next });
-                            setRemoved(null);
-                          }}
-                        >
-                          Undo
-                        </button>
-                      </span>
-                    )}
+                    {removedChip}
                   </>
                 ),
               }}

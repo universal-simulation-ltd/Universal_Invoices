@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { BUSINESS_PAGE, businessLineRows, businessSections, layoutBusinessDoc, type BusinessSection, type LayoutPage, type LineRowBox, type SectionBox } from '@unisim/doc';
 import { changedBoxes } from '../lib/changes';
 
@@ -7,6 +8,7 @@ const PART_NAMES: Record<BusinessSection, string> = { issuer: 'From', document: 
 import { toBusinessDoc } from '../lib/convert';
 import { renderPdf } from '../lib/pdf';
 import type { InvoiceDoc } from '../lib/types';
+import { useMedia } from './ui';
 
 /**
  * The document's real PDF, drawn page by page with pdf.js rather than in the
@@ -91,12 +93,17 @@ export default function PdfPreview({
     : undefined;
   const [overRow, setOverRow] = useState<number | null>(null);
   const card = useRef<HTMLDivElement>(null);
+  // On a phone the editor is a sheet along the bottom of the screen, not a card
+  // under the row (backlog 2026-11-10: "switch if it feels cramped"; James:
+  // "do the rest"). The row or part it edits is scrolled up above it.
+  const sheet = useMedia('(max-width: 639px)');
+  const mark = useRef<HTMLDivElement>(null);
   // An editor just opened on a row or a part: on view, inside the pane.
   useEffect(() => {
     if (lineEdit?.open == null && partEdit?.open == null) return;
-    const t = setTimeout(() => card.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50);
+    const t = setTimeout(() => (sheet ? mark.current : card.current)?.scrollIntoView({ block: sheet ? 'start' : 'nearest', behavior: 'smooth' }), 50);
     return () => clearTimeout(t);
-  }, [lineEdit?.open, partEdit?.open]);
+  }, [lineEdit?.open, partEdit?.open, sheet]);
 
   // Dragging a row to reorder it: a mouse drags once it has moved a few
   // pixels; a finger holds still for a moment first, so a swipe still scrolls
@@ -375,8 +382,9 @@ export default function PdfPreview({
                   .map((r) => (
                     <div
                       key={`row-${r.line}`}
+                      ref={!drag && r.line === lineEdit.open ? mark : undefined}
                       aria-hidden
-                      className={`pointer-events-none absolute rounded-sm ring-2 ${
+                      className={`pointer-events-none absolute scroll-mt-24 rounded-sm ring-2 ${
                         drag ? 'bg-slate-400/20 outline-dashed outline-2 outline-slate-500 ring-0' : r.line === lineEdit.open ? 'bg-orange-400/15 ring-orange-500' : 'bg-orange-400/5 ring-orange-400/60'
                       }`}
                       style={{ left: r.x * k, top: r.top * k, width: r.width * k, height: r.height * k }}
@@ -403,6 +411,7 @@ export default function PdfPreview({
                     <EditCard
                       key={`edit-${r.line}`}
                       cardRef={card}
+                      sheet={sheet}
                       label={`Line ${r.line + 1}`}
                       style={{ left: Math.max(4, r.x * k - 8), top: (r.top + r.height) * k + 6, width: Math.min(width - 8, r.width * k + 16) }}
                       onClose={() => lineEdit.onOpen(null)}
@@ -415,12 +424,14 @@ export default function PdfPreview({
               {openPart?.page === i && partEdit && (
                 <>
                   <div
+                    ref={mark}
                     aria-hidden
-                    className="pointer-events-none absolute rounded-md bg-orange-400/15 ring-2 ring-orange-500"
+                    className="pointer-events-none absolute scroll-mt-24 rounded-md bg-orange-400/15 ring-2 ring-orange-500"
                     style={{ left: (openPart.x - PAD) * k, top: (openPart.top - PAD) * k, width: (openPart.width + 2 * PAD) * k, height: (openPart.height + 2 * PAD) * k }}
                   />
                   <EditCard
                     cardRef={card}
+                    sheet={sheet}
                     label={PART_NAMES[openPart.section]}
                     style={(() => {
                       const w = Math.min(width - 8, Math.max(openPart.width * k + 16, 420));
@@ -517,6 +528,7 @@ export default function PdfPreview({
  */
 function EditCard({
   cardRef,
+  sheet,
   label,
   style,
   onClose,
@@ -525,6 +537,8 @@ function EditCard({
   children,
 }: {
   cardRef: React.RefObject<HTMLDivElement>;
+  /** A phone: a sheet along the bottom of the screen; a big swipe down closes it (BRANDING.md). */
+  sheet?: boolean;
   label: string;
   style: React.CSSProperties;
   onClose: () => void;
@@ -541,14 +555,20 @@ function EditCard({
     (first ?? el).focus({ preventScroll: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when it opens
   }, [label]);
-  return (
+  const swipe = useRef<number | null>(null);
+  const [pulled, setPulled] = useState(0);
+  const el = (
     <div
       ref={cardRef}
       role="group"
       tabIndex={-1}
       aria-label={label}
-      className="absolute z-10 select-text rounded-xl outline-none border border-orange-300 bg-white p-3 text-left shadow-xl dark:border-orange-800 dark:bg-slate-900"
-      style={style}
+      className={
+        sheet
+          ? 'fixed inset-x-0 bottom-0 z-40 max-h-[70vh] select-text overflow-y-auto overscroll-contain rounded-t-2xl border-t border-orange-300 bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-left shadow-[0_-8px_30px_rgba(0,0,0,0.18)] outline-none dark:border-orange-800 dark:bg-slate-900'
+          : 'absolute z-10 select-text rounded-xl outline-none border border-orange-300 bg-white p-3 text-left shadow-xl dark:border-orange-800 dark:bg-slate-900'
+      }
+      style={sheet ? { transform: pulled ? `translateY(${pulled}px)` : undefined } : style}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       onMouseMove={(e) => {
@@ -562,7 +582,26 @@ function EditCard({
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onLeave?.();
       }}
     >
+      {sheet && (
+        // The handle: drag it down to close.
+        <div
+          className="sticky top-0 z-10 -mx-3 mb-2 flex touch-none justify-center bg-white pb-1 pt-2 dark:bg-slate-900"
+          onTouchStart={(e) => (swipe.current = e.touches[0].clientY)}
+          onTouchMove={(e) => swipe.current !== null && setPulled(Math.max(0, e.touches[0].clientY - swipe.current))}
+          onTouchEnd={() => {
+            const far = pulled > 80;
+            swipe.current = null;
+            setPulled(0);
+            if (far) onClose();
+          }}
+        >
+          <span aria-hidden className="h-1.5 w-10 rounded-full bg-slate-300 dark:bg-slate-600" />
+        </div>
+      )}
       {children}
     </div>
   );
+  // A portal, so the sheet is fixed to the screen whatever scrolls under it.
+  // React still bubbles its events to the page it came from: stopped above.
+  return sheet ? createPortal(el, document.body) : el;
 }

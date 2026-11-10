@@ -27,11 +27,14 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
 - **Editing on the page:** click a line on the preview to edit it in a card
   under the row, or drag it up or down to move it (on a phone, hold it, then
   drag). Click the company, the document's number and dates, the client, the
-  payment terms and bank, or the notes, and that section's fields open on the
-  page the same way. Leaving the card saves, and the page redraws. *+ From
-  catalogue* under the last row opens your catalogue as pictures, a group per
-  folder (folded when the catalogue is big) with a search: each tap adds a
-  line, Done saves them.
+  payment terms and bank, the notes, or the totals (for a discount off the
+  whole document), and those fields open on the page the same way. On a phone
+  the card is a sheet along the bottom of the screen; drag its handle down to
+  close it. Leaving the card saves, and the page redraws. The Lines section is
+  a list of the lines: a click opens that line's card on the preview, or its
+  fields under the row on a phone or while a signed copy is shown. *+ From
+  catalogue* opens your catalogue as pictures, a group per folder (folded when
+  the catalogue is big) with a search: each tap adds a line, Done saves them.
 - **Sign:** opens Universal Signatures over the document; draw or pick your
   signature, place it, Sign — the signed copy comes back and is kept with the
   document. While the document is unchanged, the preview, Download and Share

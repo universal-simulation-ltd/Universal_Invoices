@@ -3,15 +3,17 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNod
 import { saveBlob } from '@unisim/media/save';
 import { computeTotals, formatMoney, type BusinessSection } from '@unisim/doc';
 import { GrowingTextarea } from '@unisim/sdk';
-import { clientFromSnapshot, clientSnapshot, issuerSnapshot, pdfFileName, pdfFingerprint } from '../lib/convert';
+import { arrange, cataloguePictures, flatten } from '../lib/arrange';
+import { blankLine, clientFromSnapshot, clientSnapshot, issuerSnapshot, lineFromProduct, pdfFileName, pdfFingerprint } from '../lib/convert';
 import { renderPdf } from '../lib/pdf';
-import { KIND_NAMES, type InvoiceDoc, type VersionReason } from '../lib/types';
+import { KIND_NAMES, type DocLine, type InvoiceDoc, type VersionReason } from '../lib/types';
 import { removeVersion, restoreVersion, withVersion } from '../lib/versions';
 import { useAppStore } from '../stores/appStore';
 import { fileSize, openAttachment } from './attachments';
 import CurrencyConvert from './CurrencyConvert';
 import DocumentJourney from './DocumentJourney';
 import DocumentVersions from './DocumentVersions';
+import LineFields from './LineFields';
 import LinesEditor from './LinesEditor';
 import MoreMenu, { menuItem } from './MoreMenu';
 import PdfPreview from './PdfPreview';
@@ -236,6 +238,36 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
     if (signedCurrent && signedBlob && !dirty.size) await saveBlob(signedBlob, doc.signed!.file.name);
     else await saveBlob(renderPdf(saved).blob, pdfFileName(saved));
     setShareSignal((n) => n + 1);
+  };
+
+  // Lines edited on the preview (James, 2026-11-10: "edit directly onto the
+  // PDF preview"): the row whose editor is open, and the last one removed,
+  // for its Undo.
+  const [lineOpen, setLineOpen] = useState<number | null>(null);
+  const [removed, setRemoved] = useState<{ line: DocLine; index: number; at: number } | null>(null);
+  useEffect(() => {
+    setLineOpen(null);
+    setRemoved(null);
+  }, [doc.id]);
+  useEffect(() => {
+    if (!removed) return;
+    const t = setTimeout(() => setRemoved(null), 10_000);
+    return () => clearTimeout(t);
+  }, [removed]);
+  const catalogue = products.filter((p) => soldBy(p, doc.companyId, companies));
+  const pictures = cataloguePictures(catalogue, folders);
+  // The page redraws when an edit is saved: on Done, on another row, and when
+  // the cursor leaves the editor — as leaving a box in the form does.
+  const saveLines = () => {
+    if (dirty.has('lines')) save(['lines']);
+  };
+  const openLine = (line: number | null) => {
+    saveLines();
+    setLineOpen(line);
+  };
+  const addLine = (line: DocLine) => {
+    edit('lines', { lines: [...draft.lines, line] });
+    setLineOpen(draft.lines.length);
   };
 
   // Versions (lib/versions.ts). What is being edited is saved first, so a
@@ -548,6 +580,10 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
             title="Lines"
             summary={`${d.lines.length} line${d.lines.length === 1 ? '' : 's'}${d.kind === 'delivery-note' ? '' : ` · ${formatMoney(computeTotals(d).gross, d.currency, d.numberStyle, true)}`}`}
           >
+            <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+              <span className="lg:hidden">Or tap a line under Preview to edit it there.</span>
+              <span className="hidden lg:inline">Or click a line on the preview to edit it there.</span>
+            </p>
             <LinesEditor
               doc={d}
               // Its company's catalogue: items ticked for it, and all-companies ones (lib/soldBy.ts).
@@ -671,6 +707,83 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
               hovered={overSection ? PDF_PARTS[overSection] : null}
               onHover={setOverPart}
               onPick={openFromPdf}
+              lines={{
+                open: lineOpen !== null && lineOpen < d.lines.length ? lineOpen : null,
+                onOpen: openLine,
+                onLeave: saveLines,
+                editor: lineOpen !== null && d.lines[lineOpen] && (
+                  <>
+                    <LineFields
+                      key={d.lines[lineOpen].id}
+                      doc={d}
+                      index={lineOpen}
+                      pictures={pictures}
+                      total={formatMoney(computeTotals(d).lines[lineOpen], d.currency, d.numberStyle, true)}
+                      autoFocus
+                      onSet={(patch) => edit('lines', { lines: d.lines.map((l, n) => (n === lineOpen ? { ...l, ...patch } : l)) })}
+                      onMove={(by) => {
+                        const next = [...d.lines];
+                        const [line] = next.splice(lineOpen, 1);
+                        next.splice(lineOpen + by, 0, line);
+                        edit('lines', { lines: next });
+                        setLineOpen(lineOpen + by);
+                      }}
+                      onRemove={() => {
+                        setRemoved({ line: d.lines[lineOpen], index: lineOpen, at: Date.now() });
+                        edit('lines', { lines: d.lines.filter((_, n) => n !== lineOpen) });
+                        setLineOpen(null);
+                      }}
+                    />
+                    <div className="mt-3 flex justify-end">
+                      <button type="button" className={btnPrimary} onClick={() => openLine(null)}>
+                        Done
+                      </button>
+                    </div>
+                  </>
+                ),
+                add: (
+                  <>
+                    <button type="button" className={`${btnGhost} bg-white/90 py-1 text-xs dark:bg-slate-900/90`} onClick={() => addLine(blankLine(d.taxMode === 'standard' ? (company?.defaults.taxRate ?? 20) : undefined))}>
+                      + Add line
+                    </button>
+                    {catalogue.length > 0 && (
+                      <select
+                        className={`${selectBase} bg-white/90 py-1 text-xs dark:bg-slate-900/90`}
+                        value=""
+                        aria-label="Add a line from your catalogue"
+                        onChange={(e) => {
+                          const p = catalogue.find((x) => x.id === e.target.value);
+                          if (p) addLine(lineFromProduct(p));
+                        }}
+                      >
+                        <option value="">+ From catalogue…</option>
+                        {flatten(arrange(catalogue, folders)).map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {[p.code, p.description.split('\n')[0]].filter(Boolean).join(' — ').slice(0, 80)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {removed && Date.now() - removed.at < 10_000 && (
+                      <span className="flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1 text-xs text-white shadow dark:bg-slate-100 dark:text-slate-900">
+                        Line removed
+                        <button
+                          type="button"
+                          className="font-semibold underline"
+                          onClick={() => {
+                            const next = [...d.lines];
+                            next.splice(Math.min(removed.index, next.length), 0, removed.line);
+                            edit('lines', { lines: next });
+                            setRemoved(null);
+                          }}
+                        >
+                          Undo
+                        </button>
+                      </span>
+                    )}
+                  </>
+                ),
+              }}
             />
           </div>
         </div>

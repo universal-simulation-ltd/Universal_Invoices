@@ -38,7 +38,7 @@ describe('versions', () => {
     for (let i = 0; i < 5; i++) doc = withVersion(edit(doc, `n${i}`), 'download');
     expect(Object.keys(doc.versionImages!)).toHaveLength(1);
     expect(JSON.stringify(doc.versions).includes('AAAAAAAAAA')).toBe(false);
-    const noPicture = { ...doc, lines: doc.lines.map(({ image: _i, ...l }) => l) };
+    const noPicture = { ...doc, lines: doc.lines.map((l) => ({ ...l, image: undefined })) };
     expect(asVersion(noPicture, doc.versions![0]).lines[0].image?.dataUrl).toBe(picture.dataUrl);
   });
 

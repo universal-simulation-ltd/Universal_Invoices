@@ -1,11 +1,10 @@
 import { computeTotals, formatMoney, wantsDecimals } from '@unisim/doc';
-import { GrowingTextarea } from '@unisim/sdk';
-import { arrange } from '../lib/arrange';
+import { arrange, cataloguePictures } from '../lib/arrange';
 import { blankLine, lineFromProduct } from '../lib/convert';
 import type { DocLine, Discount, Folder, InvoiceDoc, Product } from '../lib/types';
-import ImagePicker, { type PictureChoice } from './ImagePicker';
-import UnitSelect from './UnitSelect';
-import { DecimalInput, DiscountInput, MoneyInput, btnGhost, btnIcon, inputCls, labelCls, selectBase } from './ui';
+import { type PictureChoice } from './ImagePicker';
+import LineFields from './LineFields';
+import { DiscountInput, btnGhost, selectBase } from './ui';
 
 /**
  * The line table. Two rows per line rather than one wide one: the editor is
@@ -36,10 +35,7 @@ export default function LinesEditor({
   const money = (v: number) => formatMoney(v, doc.currency, doc.numberStyle, decimals);
 
   // The catalogue's pictures, in its own order, to pick for a line.
-  const pictures: PictureChoice[] = arrange(products, folders)
-    .flatMap((e) => (e.kind === 'folder' ? e.items : [e.product]))
-    .filter((p) => p.image)
-    .map((p) => ({ id: p.id, label: [p.code, p.description.split('\n')[0]].filter(Boolean).join(' — '), image: p.image! }));
+  const pictures: PictureChoice[] = cataloguePictures(products, folders);
 
   const option = (p: Product) => (
     <option key={p.id} value={p.id}>
@@ -63,71 +59,15 @@ export default function LinesEditor({
       )}
       {doc.lines.map((line, i) => (
         <div key={line.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-          <div className="flex items-start gap-3">
-            <ImagePicker compact value={line.image} onChange={(image) => set(i, { image })} maxEdge={240} label="picture" choices={pictures} />
-            <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[9rem_minmax(0,1fr)]">
-              <input className={inputCls} placeholder="Code" aria-label="Code" value={line.code} onChange={(e) => set(i, { code: e.target.value })} />
-              <GrowingTextarea
-                // Grows with its text (SDK); two rows to start, so a phone
-                // shows more than half a line.
-                className={`${inputCls} resize-y`}
-                rows={2}
-                placeholder="Description"
-                aria-label="Description"
-                value={line.description}
-                onChange={(e) => set(i, { description: e.target.value })}
-              />
-            </div>
-            <div className="flex shrink-0 flex-col">
-              <button type="button" className={btnIcon} disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up" title="Move up">
-                ↑
-              </button>
-              <button type="button" className={btnIcon} disabled={i === doc.lines.length - 1} onClick={() => move(i, 1)} aria-label="Move down" title="Move down">
-                ↓
-              </button>
-              <button
-                type="button"
-                className={`${btnIcon} hover:text-red-600`}
-                onClick={() => onChange(doc.lines.filter((_, n) => n !== i))}
-                aria-label="Remove line"
-                title="Remove line"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-          <div className={`mt-2 grid grid-cols-2 gap-2 ${priced ? (taxed ? 'sm:grid-cols-6' : 'sm:grid-cols-5') : 'sm:grid-cols-4'}`}>
-            <label className="min-w-0">
-              <span className={labelCls}>Qty</span>
-              <DecimalInput value={line.quantity} onChange={(v) => set(i, { quantity: v ?? 0 })} ariaLabel="Quantity" />
-            </label>
-            <label className="min-w-0">
-              <span className={labelCls}>Unit</span>
-              <UnitSelect value={line.unit} onChange={(unit) => set(i, { unit })} />
-            </label>
-            {priced && (
-              <>
-                <label className="min-w-0">
-                  <span className={labelCls}>Price</span>
-                  <MoneyInput value={line.unitPrice} onChange={(v) => set(i, { unitPrice: v ?? 0 })} style={doc.numberStyle} ariaLabel="Unit price" />
-                </label>
-                <label className="min-w-0" title="Off each unit: 10% or an amount. The PDF shows the price struck through above the discounted one.">
-                  <span className={labelCls}>Discount</span>
-                  <DiscountInput value={line.discount} onChange={(discount) => set(i, { discount })} style={doc.numberStyle} ariaLabel="Discount on this line" />
-                </label>
-                {taxed && (
-                  <label className="min-w-0">
-                    <span className={labelCls}>VAT %</span>
-                    <DecimalInput value={line.taxRate} onChange={(taxRate) => set(i, { taxRate })} ariaLabel="VAT rate" placeholder="0" />
-                  </label>
-                )}
-                <div className="min-w-0">
-                  <span className={labelCls}>Total</span>
-                  <div className="tabular py-2 text-right text-sm font-semibold text-slate-900 dark:text-slate-100">{money(totals.lines[i])}</div>
-                </div>
-              </>
-            )}
-          </div>
+          <LineFields
+            doc={doc}
+            index={i}
+            pictures={pictures}
+            total={money(totals.lines[i])}
+            onSet={(patch) => set(i, patch)}
+            onMove={(by) => move(i, by)}
+            onRemove={() => onChange(doc.lines.filter((_, n) => n !== i))}
+          />
         </div>
       ))}
 

@@ -155,3 +155,10 @@ export function step(products: Product[], folders: Folder[], id: string, dir: -1
   }
   return null;
 }
+
+/** The catalogue's pictures, in its own order, for a line's picture picker. */
+export function cataloguePictures(products: Product[], folders: Folder[]): { id: string; label: string; image: NonNullable<Product['image']> }[] {
+  return flatten(arrange(products, folders))
+    .filter((p) => p.image)
+    .map((p) => ({ id: p.id, label: [p.code, p.description.split('\n')[0]].filter(Boolean).join(' — '), image: p.image! }));
+}

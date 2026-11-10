@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { BUSINESS_PAGE, businessSections, layoutBusinessDoc, type BusinessSection, type LayoutPage, type SectionBox } from '@unisim/doc';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { BUSINESS_PAGE, businessLineRows, businessSections, layoutBusinessDoc, type BusinessSection, type LayoutPage, type LineRowBox, type SectionBox } from '@unisim/doc';
 import { changedBoxes } from '../lib/changes';
 
 const PAD = 4; // points around a part's box
@@ -26,6 +26,7 @@ export default function PdfPreview({
   hovered,
   onHover,
   onPick,
+  lines,
 }: {
   doc: InvoiceDoc;
   /** Marked and scrolled to: the part of the form being worked in. */
@@ -37,6 +38,13 @@ export default function PdfPreview({
   /** The part of the page under the pointer (James, 2026-11-03: "on the viewer on hover highlight a section and on click open that collapsible"). */
   onHover?: (part: BusinessSection | null) => void;
   onPick?: (part: BusinessSection) => void;
+  /**
+   * Editing lines on the page itself (James, 2026-11-10: "edit directly onto
+   * the PDF preview"): a row of the table is outlined under the pointer, a
+   * click opens `editor` on it, and `add` sits under the table's last row.
+   * Off while a signed copy is shown: that PDF is not this layout.
+   */
+  lines?: { open: number | null; onOpen: (line: number | null) => void; editor: ReactNode; add: ReactNode; /** The cursor left the open editor: save it, so the page redraws. */ onLeave?: () => void };
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -54,6 +62,16 @@ export default function PdfPreview({
   const result = useMemo(() => (file ? { blob: file, dropped: [] as string[] } : renderPdf(doc)), [doc, file]);
   const layout = useMemo(() => layoutBusinessDoc(toBusinessDoc(doc)), [doc]);
   const boxes = useMemo(() => businessSections(layout), [layout]);
+  const rows = useMemo(() => businessLineRows(layout), [layout]);
+  const lineEdit = file ? undefined : lines;
+  const [overRow, setOverRow] = useState<number | null>(null);
+  const card = useRef<HTMLDivElement>(null);
+  // An editor just opened on a row: on view, inside the pane.
+  useEffect(() => {
+    if (lineEdit?.open == null) return;
+    const t = setTimeout(() => card.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50);
+    return () => clearTimeout(t);
+  }, [lineEdit?.open]);
 
   // The same document laid out again: what changed waits for its pages to be drawn.
   const before = useRef<{ id: string; layout: LayoutPage[] } | null>(null);
@@ -124,6 +142,22 @@ export default function PdfPreview({
     const y = (e.clientY - r.top) / scale;
     return boxes.find((b) => b.page === i && x >= b.x - PAD && x <= b.x + b.width + PAD && y >= b.top - PAD && y <= b.top + b.height + PAD)?.section ?? null;
   };
+  // The table row under the pointer on page `i`.
+  const rowAt = (i: number, e: React.MouseEvent<HTMLDivElement>): LineRowBox | null => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const scale = r.width / BUSINESS_PAGE.width;
+    const x = (e.clientX - r.left) / scale;
+    const y = (e.clientY - r.top) / scale;
+    return rows.find((b) => b.page === i && x >= b.x && x <= b.x + b.width && y >= b.top && y <= b.top + b.height) ?? null;
+  };
+  // Where "+ Add line" goes: under the last row, or under the table's header when there are none.
+  const lastRow = rows[rows.length - 1];
+  const header = boxes.find((b) => b.section === 'lines');
+  const addAt = lastRow
+    ? { page: lastRow.page, x: lastRow.x, top: lastRow.top + lastRow.height }
+    : header
+      ? { page: header.page, x: header.x, top: header.top + header.height }
+      : null;
   useEffect(() => {
     const el = scroller.current;
     if (!el || !first || !width) return;
@@ -165,18 +199,80 @@ export default function PdfPreview({
           srcs.map((src, i) => (
             <div
               key={i}
-              className={`relative bg-white shadow-sm ${hovered?.length ? 'cursor-pointer' : ''}`}
-              onMouseMove={onHover && ((e) => onHover(partAt(i, e)))}
-              onMouseLeave={onHover && (() => onHover(null))}
-              onClick={
-                onPick &&
-                ((e) => {
-                  const part = partAt(i, e);
-                  if (part) onPick(part);
-                })
-              }
+              className={`relative bg-white shadow-sm ${hovered?.length || overRow !== null ? 'cursor-pointer' : ''}`}
+              onMouseMove={(e) => {
+                onHover?.(partAt(i, e));
+                if (lineEdit) setOverRow(rowAt(i, e)?.line ?? null);
+              }}
+              onMouseLeave={() => {
+                onHover?.(null);
+                setOverRow(null);
+              }}
+              onClick={(e) => {
+                const row = lineEdit && rowAt(i, e);
+                if (row) {
+                  lineEdit.onOpen(row.line === lineEdit.open ? null : row.line);
+                  return;
+                }
+                const part = partAt(i, e);
+                if (part && onPick) onPick(part);
+              }}
             >
               <img src={src} alt={`Page ${i + 1}`} className="block w-full" draggable={false} />
+              {lineEdit &&
+                rows
+                  .filter((r) => r.page === i && (r.line === overRow || r.line === lineEdit.open))
+                  .map((r) => (
+                    <div
+                      key={`row-${r.line}`}
+                      aria-hidden
+                      className={`pointer-events-none absolute rounded-sm ring-2 ${r.line === lineEdit.open ? 'bg-orange-400/15 ring-orange-500' : 'bg-orange-400/5 ring-orange-400/60'}`}
+                      style={{ left: r.x * k, top: r.top * k, width: r.width * k, height: r.height * k }}
+                    >
+                      {r.line !== lineEdit.open && (
+                        <span className="absolute -top-2 right-1 -translate-y-full rounded-full bg-orange-600 px-1.5 py-px text-[10px] font-semibold text-white shadow-sm">Click to edit</span>
+                      )}
+                    </div>
+                  ))}
+              {lineEdit &&
+                rows
+                  .filter((r) => r.page === i && r.line === lineEdit.open)
+                  .map((r) => (
+                    <div
+                      key={`edit-${r.line}`}
+                      ref={card}
+                      role="group"
+                      aria-label={`Line ${r.line + 1}`}
+                      className="absolute z-10 rounded-xl border border-orange-300 bg-white p-3 text-left shadow-xl dark:border-orange-800 dark:bg-slate-900"
+                      style={{ left: Math.max(4, r.x * k - 8), top: (r.top + r.height) * k + 6, width: Math.min(width - 8, r.width * k + 16) }}
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseMove={(e) => {
+                        e.stopPropagation();
+                        setOverRow(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') lineEdit.onOpen(null);
+                      }}
+                      onBlur={(e) => {
+                        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) lineEdit.onLeave?.();
+                      }}
+                    >
+                      {lineEdit.editor}
+                    </div>
+                  ))}
+              {lineEdit && lineEdit.open === null && addAt?.page === i && (
+                <div
+                  className="absolute z-10 flex flex-wrap items-center gap-2"
+                  style={{ left: addAt.x * k, top: addAt.top * k + 6 }}
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseMove={(e) => {
+                    e.stopPropagation();
+                    setOverRow(null);
+                  }}
+                >
+                  {lineEdit.add}
+                </div>
+              )}
               {marks
                 .filter((b) => b.page === i)
                 .map((b, n) => (

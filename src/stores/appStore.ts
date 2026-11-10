@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { move, type Target } from '../lib/arrange';
 import { makeBackup, mergeDataset, parseBackup } from '../lib/backup';
-import { companyForImport, companyFromRead, convertDocument, duplicateDocument, freshDocument, importedDocument, newDocument, uid, withCataloguePictures } from '../lib/convert';
-import { relinkAfterDelete } from '../lib/journey';
+import { companyForImport, companyFromRead, convertDocument, duplicateDocument, duplicateJourney, freshDocument, importedDocument, newDocument, uid, withCataloguePictures } from '../lib/convert';
+import { journeyOf, relinkAfterDelete } from '../lib/journey';
 import { changedBy, upgrade } from '../lib/legacy';
 import { shareHooks } from '../lib/shareHooks';
 import type { ReadDocument } from '../lib/readPdf';
@@ -108,7 +108,13 @@ interface AppState {
   importRead: (read: ReadDocument, file: Attachment | undefined, fallbackKind: BusinessDocKind, activeId?: string) => Promise<void>;
   /** A journey step done outside the app — or, with null, back to "to do". Kept on the journey's first document. */
   markStep: (rootId: string, kind: BusinessDocKind, mark: JourneyMark | null) => void;
-  duplicate: (id: string) => Promise<void>;
+  /** A copy with a fresh number, opened. `patch` is applied to the copy (a currency conversion's prices). */
+  duplicate: (id: string, patch?: Partial<Pick<InvoiceDoc, 'currency' | 'lines' | 'discount'>>) => Promise<void>;
+  /**
+   * Duplicate a selection. Documents ticked from the same project are copied
+   * as one new project (`duplicateJourney`); the rest one by one.
+   */
+  duplicateMany: (ids: string[]) => Promise<void>;
 
   /**
    * "See an example" — that list's ONE example. `documents` brings its company,
@@ -497,12 +503,41 @@ export const useAppStore = create<AppState>((set, get) => {
       else delete journey[kind];
       get().updateDocument({ ...root, journey });
     },
-    duplicate: async (id) => {
+    duplicate: async (id, patch) => {
       const source = get().documents.find((d) => d.id === id);
       const company = source && get().companies.find((c) => c.id === source.companyId);
       if (!source || !company) return;
-      const { doc, company: next } = duplicateDocument(source, company, todayIso());
+      const { doc, company: next } = duplicateDocument(patch ? { ...source, ...patch } : source, company, todayIso());
       await added(doc, next);
+    },
+
+    duplicateMany: async (ids) => {
+      const s = get();
+      const picked = s.documents.filter((d) => ids.includes(d.id));
+      const byProject = new Map<string, InvoiceDoc[]>();
+      for (const d of picked) {
+        const key = journeyOf(d, s.documents).root.id;
+        byProject.set(key, [...(byProject.get(key) ?? []), d]);
+      }
+      let companies = s.companies;
+      const made: InvoiceDoc[] = [];
+      for (const group of byProject.values()) {
+        const out = duplicateJourney(group, companies, todayIso());
+        companies = companies.map((c) => out.companies.find((n) => n.id === c.id) ?? c);
+        made.push(...out.docs);
+      }
+      if (!made.length) return;
+      const changed = companies.filter((c) => !s.companies.includes(c));
+      set({
+        documents: [...get().documents, ...made],
+        companies: get().companies.map((c) => changed.find((n) => n.id === c.id) ?? c),
+        // One document copied opens it, as Duplicate always has; a bigger
+        // selection stays on the list, where the copies now show.
+        ...(made.length === 1 ? { openId: made[0].id } : {}),
+        tab: 'documents',
+      });
+      await putMany({ documents: made, companies: changed });
+      await dropExample('documents');
     },
 
     loadExample: async (table = 'documents') => {

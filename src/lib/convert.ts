@@ -204,6 +204,45 @@ export function duplicateDocument(source: InvoiceDoc, company: Company, date: st
   return { ...out, doc: { ...out.doc, sourceId: undefined } };
 }
 
+/**
+ * A whole project copied (James, 2026-11-10: "when ticking a grouped project
+ * and making a duplicate, make a duplicate of the grouped project not just the
+ * individual documents"): each document gets a fresh number, and each copy
+ * points back at the COPY of its source, so the copies form their own journey
+ * beside the original. A source outside `sources` leaves its copy as the new
+ * project's start. "Not needed" marks come along (they describe the project's
+ * shape); uploads and "done elsewhere" describe what happened to the original,
+ * so they stay behind. `companies` is threaded so the numbers run on.
+ */
+export function duplicateJourney(
+  sources: InvoiceDoc[],
+  companies: Company[],
+  date: string,
+): { docs: InvoiceDoc[]; companies: Company[] } {
+  const ordered = [...sources].sort((a, b) => a.createdAt - b.createdAt);
+  const byCompany = new Map(companies.map((c) => [c.id, c]));
+  const newId = new Map<string, string>();
+  const docs: InvoiceDoc[] = [];
+  ordered.forEach((source, i) => {
+    const company = byCompany.get(source.companyId);
+    if (!company) return;
+    const out = duplicateDocument(source, company, date);
+    byCompany.set(company.id, out.company);
+    const sourceCopy = source.sourceId ? newId.get(source.sourceId) : undefined;
+    const skipped = Object.fromEntries(Object.entries(source.journey ?? {}).filter(([, m]) => m?.state === 'skipped'));
+    newId.set(source.id, out.doc.id);
+    docs.push({
+      ...out.doc,
+      // Kept in the original's order: the journey sorts its members by this.
+      createdAt: out.doc.createdAt + i,
+      ...(sourceCopy ? { sourceId: sourceCopy } : {}),
+      ...(!sourceCopy && Object.keys(skipped).length ? { journey: skipped } : {}),
+    });
+  });
+  const touched = new Set(ordered.map((d) => d.companyId));
+  return { docs, companies: [...byCompany.values()].filter((c) => touched.has(c.id)) };
+}
+
 export function lineFromProduct(p: { id: string } & Omit<DocLine, 'id' | 'quantity' | 'productId' | 'discount'>): DocLine {
   return {
     id: uid(),

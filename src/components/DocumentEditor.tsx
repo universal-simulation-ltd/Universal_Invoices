@@ -593,7 +593,13 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                   </Field>
                   <CurrencyConvert
                     doc={d}
-                    onConvert={(r) => {
+                    onConvert={(r, where) => {
+                      if (where === 'copy') {
+                        // What is being edited here is saved first, so the copy is of this document as it reads now.
+                        save(dirty);
+                        void duplicate(doc.id, { currency: r.currency, lines: r.lines, discount: r.discount });
+                        return;
+                      }
                       edit('terms', { currency: r.currency });
                       edit('lines', { lines: r.lines, discount: r.discount });
                     }}

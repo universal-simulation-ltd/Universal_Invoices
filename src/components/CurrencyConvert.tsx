@@ -17,7 +17,10 @@ const CURRENCIES: { code: InvoiceDoc['currency']; name: string }[] = [
  * amounts too, by an exchange rate or to a total you name. The maths is
  * lib/currencyConvert.ts; this is the panel and its live before → after line.
  */
-export default function CurrencyConvert({ doc, onConvert }: { doc: InvoiceDoc; onConvert: (r: Converted) => void }) {
+/** `copy`: a new document in the new currency, this one left as it is. `here`: this document changes. */
+export type ConvertWhere = 'copy' | 'here';
+
+export default function CurrencyConvert({ doc, onConvert }: { doc: InvoiceDoc; onConvert: (r: Converted, where: ConvertWhere) => void }) {
   const panel = useId();
   const [open, setOpen] = useState(false);
   const others = CURRENCIES.filter((c) => c.code !== doc.currency);
@@ -25,6 +28,10 @@ export default function CurrencyConvert({ doc, onConvert }: { doc: InvoiceDoc; o
   const [by, setBy] = useState<'total' | 'rate'>('total');
   const [rate, setRate] = useState<number | undefined>();
   const [total, setTotal] = useState<number | undefined>();
+  // A copy by default (James, 2026-11-10: "the option to make a duplicate of
+  // the invoice in the new currency or edit directly"): the original is
+  // usually what was already sent.
+  const [where, setWhere] = useState<ConvertWhere>('copy');
 
   const target = others.some((c) => c.code === to) ? to : others[0].code;
   const before = computeTotals(doc).gross;
@@ -103,6 +110,21 @@ export default function CurrencyConvert({ doc, onConvert }: { doc: InvoiceDoc; o
               <span className="text-slate-500 dark:text-slate-400">Now {money(before, doc.currency)}.</span>
             )}
           </p>
+          <fieldset className="min-w-0">
+            <legend className={labelCls}>Put the converted prices on</legend>
+            <div className="space-y-1 pt-1 text-sm text-slate-700 dark:text-slate-300">
+              <label className="flex items-start gap-2">
+                <input type="radio" className="mt-1 accent-orange-600" name={`${panel}-where`} checked={where === 'copy'} onChange={() => setWhere('copy')} />
+                <span>
+                  A copy in {target}, with its own number <span className="text-slate-500 dark:text-slate-400">— this one stays in {doc.currency}</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2">
+                <input type="radio" className="mt-1 accent-orange-600" name={`${panel}-where`} checked={where === 'here'} onChange={() => setWhere('here')} />
+                <span>This document</span>
+              </label>
+            </div>
+          </fieldset>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -110,13 +132,13 @@ export default function CurrencyConvert({ doc, onConvert }: { doc: InvoiceDoc; o
               disabled={!result}
               onClick={() => {
                 if (!result) return;
-                onConvert(result);
+                onConvert(result, where);
                 setOpen(false);
                 setRate(undefined);
                 setTotal(undefined);
               }}
             >
-              Convert to {target}
+              {where === 'copy' ? `Make the ${target} copy` : `Convert to ${target}`}
             </button>
             <button type="button" className={btnGhost} onClick={() => setOpen(false)}>
               Cancel

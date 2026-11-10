@@ -115,7 +115,7 @@ function JourneyGroup({ docs, sel, open, folded, onToggle }: { docs: InvoiceDoc[
 }
 
 export default function DocumentsView() {
-  const { companies, documents, createDocument, open, setTab, loadExample, deleteMany, duplicate } = useAppStore();
+  const { companies, documents, createDocument, open, setTab, loadExample, deleteMany, duplicateMany } = useAppStore();
   // The sidebar's kind. A double tap makes it what Documents opens on.
   const shows = useDefaultView<DocumentsViewKind>('documents-kind', 'all', { views: DOCUMENTS_VIEW_VALUES });
   const [kind, setKind] = useState<DocumentsViewKind>(shows.defaultView);
@@ -258,10 +258,10 @@ export default function DocumentsView() {
               noun="document"
               onDelete={(ids) => deleteMany('documents', ids)}
               onExport={(ids) => saveSpreadsheet('documents', ids)}
-              // A copy with a new number — what "Make… → A copy" was in the editor (James, 2026-11-03).
-              onDuplicate={async (ids) => {
-                for (const id of ids) await duplicate(id);
-              }}
+              // A copy with a new number — what "Make… → A copy" was in the editor
+              // (James, 2026-11-03). A ticked project is copied AS a project, its
+              // copies linked into their own journey (James, 2026-11-10).
+              onDuplicate={(ids) => duplicateMany(ids)}
             />
           </div>
         </div>

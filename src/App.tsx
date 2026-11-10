@@ -36,7 +36,11 @@ const COMPANY_LINK = new URLSearchParams(location.search).get('company');
 export default function App() {
   const { init, loaded, tab, setTab, openId, documents, notice, dismissNotice } = useAppStore();
   const cloudLine = cloudFooter(useAppStore((s) => s.cloud));
-  const homeTab = useDefaultView<Tab>('home-tab', 'documents', { views: TAB_VALUES });
+  // Opens on Your companies until the person picks otherwise (James,
+  // 2026-11-10: "it should open on companies by default but then the user can
+  // choose which it should open on after that"): double-tap a tab, or Opens on
+  // in Tune this app. Reset to defaults comes back here.
+  const homeTab = useDefaultView<Tab>('home-tab', 'companies', { views: TAB_VALUES });
   const openDoc = openId ? documents.find((d) => d.id === openId) : undefined;
   // Here, in a component that is always mounted, so a change made in Tune
   // this app still reaches the account after the dialog shuts.
@@ -83,7 +87,7 @@ export default function App() {
         themeStore={useThemeStore}
         appPreferences={
           <>
-            <DefaultViewSelect id="home-tab" label="Opens on" fallback="documents" views={TABS} />
+            <DefaultViewSelect id="home-tab" label="Opens on" fallback="companies" views={TABS} />
             {/* The Documents sidebar's twin of the double tap. */}
             <DefaultViewSelect id="documents-kind" label="Documents shows" fallback="all" views={DOCUMENTS_VIEWS} />
             <TabOrderPreference order={tabOrder} onOrder={setTabOrder} />

@@ -5,11 +5,13 @@ import { computeTotals, formatMoney, type BusinessSection } from '@unisim/doc';
 import { GrowingTextarea } from '@unisim/sdk';
 import { clientFromSnapshot, clientSnapshot, issuerSnapshot, pdfFileName, pdfFingerprint } from '../lib/convert';
 import { renderPdf } from '../lib/pdf';
-import { KIND_NAMES, type InvoiceDoc } from '../lib/types';
+import { KIND_NAMES, type InvoiceDoc, type VersionReason } from '../lib/types';
+import { removeVersion, restoreVersion, withVersion } from '../lib/versions';
 import { useAppStore } from '../stores/appStore';
 import { fileSize, openAttachment } from './attachments';
 import CurrencyConvert from './CurrencyConvert';
 import DocumentJourney from './DocumentJourney';
+import DocumentVersions from './DocumentVersions';
 import LinesEditor from './LinesEditor';
 import MoreMenu, { menuItem } from './MoreMenu';
 import PdfPreview from './PdfPreview';
@@ -213,7 +215,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
         r.onload = () => resolve(r.result as string);
         r.readAsDataURL(blob);
       });
-      const latestDoc = useAppStore.getState().documents.find((x) => x.id === doc.id) ?? doc;
+      const latestDoc = withVersion(useAppStore.getState().documents.find((x) => x.id === doc.id) ?? doc, 'sign');
       updateDocument({
         ...latestDoc,
         signed: { file: { name, type: 'application/pdf', size: blob.size, dataUrl }, fingerprint: pdfFingerprint(latestDoc), at: Date.now(), ...(verifyUrl ? { verifyUrl } : {}) },
@@ -230,9 +232,18 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
   const [shareSignal, setShareSignal] = useState(0);
   const download = async () => {
     const saved = save(dirty);
+    updateDocument(withVersion(savedNow(), 'download'));
     if (signedCurrent && signedBlob && !dirty.size) await saveBlob(signedBlob, doc.signed!.file.name);
     else await saveBlob(renderPdf(saved).blob, pdfFileName(saved));
     setShareSignal((n) => n + 1);
+  };
+
+  // Versions (lib/versions.ts). What is being edited is saved first, so a
+  // version is of the document as the form reads now.
+  const savedNow = () => useAppStore.getState().documents.find((x) => x.id === doc.id) ?? doc;
+  const snapshot = (reason: VersionReason, name?: string) => {
+    save(dirty);
+    updateDocument(withVersion(savedNow(), reason, name));
   };
 
   const d = draft;
@@ -282,7 +293,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
         >
           Sign
         </button>
-        <ShareLink doc={doc} openSignal={shareSignal} pdf={signedCurrent ? signedBlob : undefined} />
+        <ShareLink doc={doc} openSignal={shareSignal} pdf={signedCurrent ? signedBlob : undefined} onOpen={() => snapshot('share')} />
         <button type="button" className={btnPrimary} onClick={() => void download()}>
           Download PDF
         </button>
@@ -364,7 +375,21 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
 
       {doc.imported && <ImportedCheck doc={doc} onChecked={() => updateDocument({ ...doc, imported: { ...doc.imported!, checked: true } })} />}
 
-      <DocumentJourney doc={doc} />
+      <DocumentJourney
+        doc={doc}
+        versions={
+          <DocumentVersions
+            doc={doc}
+            onSave={(name) => snapshot('manual', name)}
+            onRestore={(id) => {
+              save(dirty);
+              updateDocument(restoreVersion(savedNow(), id));
+              useAppStore.setState({ notice: 'Restored. How it read before is the newest version, if you want it back.' });
+            }}
+            onRemove={(id) => updateDocument(removeVersion(savedNow(), id))}
+          />
+        }
+      />
 
       {/* Phone: one pane at a time. */}
       <div className="u-tabs w-full lg:hidden" role="tablist" aria-label="Pane">
@@ -600,6 +625,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                         void duplicate(doc.id, { currency: r.currency, lines: r.lines, discount: r.discount });
                         return;
                       }
+                      snapshot('convert');
                       edit('terms', { currency: r.currency });
                       edit('lines', { lines: r.lines, discount: r.discount });
                     }}

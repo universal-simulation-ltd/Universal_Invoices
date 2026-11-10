@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useScrollHint } from '@unisim/sdk';
 import { journeyOf, nextStep, sourceFor, startOf, stepsOf, type Step } from '../lib/journey';
 import { KIND_NAMES, KIND_ORDER, kindPlural, type BusinessDocKind, type InvoiceDoc } from '../lib/types';
@@ -22,7 +22,7 @@ export function confirmMakeFrom(doc: InvoiceDoc): boolean {
  * row of steps, then what can be done with the one picked — on a phone the
  * row scrolls sideways, cut off at the edge (the suite rule).
  */
-export default function DocumentJourney({ doc }: { doc: InvoiceDoc }) {
+export default function DocumentJourney({ doc, versions }: { doc: InvoiceDoc; /** The open document's Versions, at the foot of the card. */ versions?: ReactNode }) {
   const { documents, convert, open, markStep } = useAppStore();
   const journey = useMemo(() => journeyOf(doc, documents), [doc, documents]);
   const steps = useMemo(() => stepsOf(journey), [journey]);
@@ -199,6 +199,7 @@ export default function DocumentJourney({ doc }: { doc: InvoiceDoc }) {
         )}
       </div>
       {error && <p className="mt-2 text-sm text-red-700 dark:text-red-400">{error}</p>}
+      {versions}
     </section>
   );
 }

@@ -36,7 +36,7 @@ async function pdfBase64(doc: InvoiceDoc, pdf?: Blob): Promise<string> {
  * makes the link if there is none yet — Download PDF does that, so saving a
  * document hands you its link.
  */
-export default function ShareLink({ doc, openSignal, pdf }: { doc: InvoiceDoc; openSignal: number; /** The signed copy, shared instead while it is current. */ pdf?: Blob }) {
+export default function ShareLink({ doc, openSignal, pdf, onOpen }: { doc: InvoiceDoc; openSignal: number; /** The signed copy, shared instead while it is current. */ pdf?: Blob; /** Opened from its own button: the editor saves a version (what is about to be shared). */ onOpen?: () => void }) {
   const { supabase } = useUniversal();
   const { user } = useUser();
   const signedIn = !!user && !(user as { is_anonymous?: boolean }).is_anonymous;
@@ -113,7 +113,15 @@ export default function ShareLink({ doc, openSignal, pdf }: { doc: InvoiceDoc; o
 
   return (
     <div className="relative">
-      <button type="button" className={btnGhost} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <button
+        type="button"
+        className={btnGhost}
+        aria-expanded={open}
+        onClick={() => {
+          if (!open) onOpen?.();
+          setOpen((o) => !o);
+        }}
+      >
         Share
       </button>
       {open && (

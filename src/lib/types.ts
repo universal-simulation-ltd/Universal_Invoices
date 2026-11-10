@@ -272,8 +272,45 @@ export interface InvoiceDoc {
    * it is kept but said to be of an earlier version.
    */
   signed?: { file: Attachment; fingerprint: string; at: number; verifyUrl?: string };
+  /**
+   * Earlier versions to go back to, oldest first (lib/versions.ts; James,
+   * 2026-11-10: "save snapshots … rewind to before my changes"). Taken on
+   * Download, Share and Sign, before a currency conversion or a restore, and
+   * by hand. Kept on the document, so backups and the online copy carry them.
+   */
+  versions?: DocVersion[];
+  /** The pictures the versions' lines show, each kept once however many versions use it. */
+  versionImages?: Record<string, StoredImage>;
   createdAt: number;
   updatedAt: number;
+}
+
+export type VersionReason = 'download' | 'share' | 'sign' | 'manual' | 'convert' | 'restore';
+
+/** A line as a version keeps it: its picture by reference into `versionImages`. */
+export type VersionLine = Omit<DocLine, 'image'> & { imageRef?: string };
+
+/** What a version restores: everything the editor's form edits. */
+export type VersionData = Omit<Pick<InvoiceDoc, VersionedField>, 'lines'> & { lines: VersionLine[] };
+
+export const VERSIONED_FIELDS = [
+  'issuer', 'number', 'date', 'validUntil', 'dueDate', 'subject', 'clientId', 'client',
+  'lines', 'discount', 'paymentTerms', 'notes', 'taxMode', 'currency', 'taxNote', 'language', 'numberStyle', 'signature',
+] as const satisfies readonly (keyof InvoiceDoc)[];
+export type VersionedField = (typeof VERSIONED_FIELDS)[number];
+
+export interface DocVersion {
+  id: string;
+  at: number;
+  reason: VersionReason;
+  /** Typed when saved by hand ("Before the USD change"). */
+  name?: string;
+  /** `pdfFingerprint` of the document as it was: an unchanged document is not saved twice. */
+  fingerprint: string;
+  /** For the list: the total and currency it had. */
+  total: number;
+  currency: CurrencyCode;
+  data: VersionData;
 }
 
 /**

@@ -3,6 +3,7 @@ import { useDefaultView, useScrollHint } from '@unisim/sdk';
 import { computeTotals, formatDate, formatMoney, wantsDecimals } from '@unisim/doc';
 import { groupByJourney } from '../lib/journey';
 import { DOCUMENTS_VIEWS, DOCUMENTS_VIEW_VALUES, type DocumentsView as DocumentsViewKind } from '../lib/tabs';
+import { useShownKinds } from './shownKinds';
 import { KIND_NAMES, kindPlural, type InvoiceDoc } from '../lib/types';
 import { ownCompanies, useAppStore } from '../stores/appStore';
 import { useActiveCompany } from './activeCompany';
@@ -118,6 +119,7 @@ export default function DocumentsView() {
   const { companies, documents, createDocument, open, setTab, loadExample, deleteMany, duplicateMany } = useAppStore();
   // The sidebar's kind. A double tap makes it what Documents opens on.
   const shows = useDefaultView<DocumentsViewKind>('documents-kind', 'all', { views: DOCUMENTS_VIEW_VALUES });
+  const { hideInvoices } = useShownKinds();
   const [kind, setKind] = useState<DocumentsViewKind>(shows.defaultView);
   const [query, setQuery] = useState('');
   // Projects open by hand, by their first document. The rest are folded to their newest.
@@ -225,7 +227,8 @@ export default function DocumentsView() {
         style={hint.style}
         className={`u-tabs ${hint.className} md:flex-col md:self-start md:overflow-visible`}
       >
-        {DOCUMENTS_VIEWS.map((v) => {
+        {/* Invoices hidden in Tune this app leave the sidebar while there are none. */}
+        {DOCUMENTS_VIEWS.filter((v) => !(hideInvoices && v.value === 'invoice' && !counts.invoice && kind !== 'invoice')).map((v) => {
           const on = kind === v.value;
           return (
             <button

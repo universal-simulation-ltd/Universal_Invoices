@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useScrollHint } from '@unisim/sdk';
 import { journeyOf, nextStep, sourceFor, startOf, stepsOf, type Step } from '../lib/journey';
-import { KIND_NAMES, KIND_ORDER, kindPlural, type BusinessDocKind, type InvoiceDoc } from '../lib/types';
+import { KIND_NAMES, kindPlural, type BusinessDocKind, type InvoiceDoc } from '../lib/types';
+import { useShownKinds } from './shownKinds';
 import { useAppStore } from '../stores/appStore';
 import { fileSize, openAttachment, readAttachment } from './attachments';
 import { btnGhost, btnPrimary, confirmAction, sectionTitle } from './ui';
@@ -25,8 +26,10 @@ export function confirmMakeFrom(doc: InvoiceDoc): boolean {
 export default function DocumentJourney({ doc, versions }: { doc: InvoiceDoc; /** The open document's Versions, at the foot of the card. */ versions?: ReactNode }) {
   const { documents, convert, open, markStep } = useAppStore();
   const journey = useMemo(() => journeyOf(doc, documents), [doc, documents]);
-  const steps = useMemo(() => stepsOf(journey), [journey]);
-  const start = Math.min(startOf(steps), KIND_ORDER.indexOf(doc.kind));
+  // Hidden in Tune this app, the invoice step goes unless this project already has one, or a mark on it.
+  const { hideInvoices } = useShownKinds();
+  const steps = useMemo(() => stepsOf(journey).filter((s) => !(hideInvoices && s.kind === 'invoice' && s.state === 'todo')), [journey, hideInvoices]);
+  const start = Math.min(startOf(steps), Math.max(0, steps.findIndex((s) => s.kind === doc.kind)));
   const [earlier, setEarlier] = useState(false);
   const [picked, setPicked] = useState<BusinessDocKind>(() => nextStep(steps, doc.kind));
   const [error, setError] = useState<string | null>(null);

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { KIND_HINTS, KIND_NAMES, KIND_ORDER, type BusinessDocKind } from '../lib/types';
+import { KIND_HINTS, KIND_NAMES, type BusinessDocKind } from '../lib/types';
+import { useShownKinds } from './shownKinds';
 import { Key, PlusIcon, btnPrimary } from './ui';
 
 /**
@@ -11,6 +12,8 @@ import { Key, PlusIcon, btnPrimary } from './ui';
  */
 export default function NewDocumentButton({ kind, onNew }: { kind: BusinessDocKind | 'all'; onNew: (kind: BusinessDocKind) => void }) {
   const [open, setOpen] = useState(false);
+  // Without Invoice when it is hidden in Tune this app (shownKinds.ts).
+  const { kinds } = useShownKinds();
   const wrap = useRef<HTMLDivElement>(null);
   const menu = useRef<HTMLDivElement>(null);
 
@@ -79,7 +82,7 @@ export default function NewDocumentButton({ kind, onNew }: { kind: BusinessDocKi
           onKeyDown={onMenuKey}
           className="absolute left-0 top-full z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
-          {KIND_ORDER.map((k) => (
+          {kinds.map((k) => (
             <button
               key={k}
               type="button"

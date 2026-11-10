@@ -9,6 +9,8 @@ import DocumentEditor from './components/DocumentEditor';
 import DocumentsView from './components/DocumentsView';
 import TabBar from './components/TabBar';
 import TabOrderPreference from './components/TabOrderPreference';
+import HideInvoicesPreference from './components/HideInvoicesPreference';
+import { FRENCH_NOTE_SEEN, HIDE_INVOICES } from './components/shownKinds';
 import { DOCUMENTS_VIEWS, normaliseOrder, TAB_VALUES, TABS } from './lib/tabs';
 import { OrgSync } from './components/OrgSync';
 import CloudBackup from './components/CloudBackup';
@@ -91,10 +93,15 @@ export default function App() {
             {/* The Documents sidebar's twin of the double tap. */}
             <DefaultViewSelect id="documents-kind" label="Documents shows" fallback="all" views={DOCUMENTS_VIEWS} />
             <TabOrderPreference order={tabOrder} onOrder={setTabOrder} />
+            <HideInvoicesPreference />
           </>
         }
         // The SDK resets its own (Opens on, Documents shows, theme, language); the tab order is ours.
-        onResetDefaults={() => setPref('tabOrder', null)}
+        onResetDefaults={() => {
+          setPref('tabOrder', null);
+          setPref(HIDE_INVOICES, null);
+          setPref(FRENCH_NOTE_SEEN, null);
+        }}
         suiteSwitcherIconSrc={`${import.meta.env.BASE_URL}unisim-icon.png`}
         // Signed in, the bar says whose it is — "Bradley’s Invoices" — and Tune
         // this app gets the account area, where App name keeps that, goes back

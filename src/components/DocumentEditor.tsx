@@ -2,12 +2,14 @@ import { soldBy } from '../lib/soldBy';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { saveBlob } from '@unisim/media/save';
 import { computeTotals, formatMoney, type BusinessSection } from '@unisim/doc';
-import { GrowingTextarea } from '@unisim/sdk';
+import { GrowingTextarea, useUserPrefs } from '@unisim/sdk';
 import { arrange, cataloguePictures, flatten } from '../lib/arrange';
 import { blankLine, clientFromSnapshot, clientSnapshot, issuerSnapshot, lineFromProduct, pdfFileName, pdfFingerprint } from '../lib/convert';
 import { renderPdf } from '../lib/pdf';
 import { KIND_NAMES, type DocLine, type InvoiceDoc, type VersionReason } from '../lib/types';
 import { removeVersion, restoreVersion, withVersion } from '../lib/versions';
+import { frenchEInvoicing } from '../lib/france';
+import { FRENCH_NOTE_SEEN } from './shownKinds';
 import { useAppStore } from '../stores/appStore';
 import { fileSize, openAttachment } from './attachments';
 import CurrencyConvert from './CurrencyConvert';
@@ -272,6 +274,9 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
 
   // Versions (lib/versions.ts). What is being edited is saved first, so a
   // version is of the document as the form reads now.
+  // The French e-invoicing note, until "Got it" (lib/france.ts).
+  const { pref, setPref } = useUserPrefs();
+  const frenchNoteSeen = pref<boolean>(FRENCH_NOTE_SEEN, false) === true;
   const savedNow = () => useAppStore.getState().documents.find((x) => x.id === doc.id) ?? doc;
   const snapshot = (reason: VersionReason, name?: string) => {
     save(dirty);
@@ -406,6 +411,17 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
       )}
 
       {doc.imported && <ImportedCheck doc={doc} onChecked={() => updateDocument({ ...doc, imported: { ...doc.imported!, checked: true } })} />}
+      {frenchEInvoicing(d) && !frenchNoteSeen && (
+        // lib/france.ts: the reform covers an invoice from a business in France to one in France.
+        <div role="note" className="flex flex-wrap items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+          <p className="min-w-0 flex-1">
+            <strong>Invoicing a business in France from France?</strong> Under the French e-invoicing rules, this PDF on its own is not a valid invoice between two French businesses: from 1 September 2027 for small businesses and sole traders, and already for larger ones. Send the invoice through your approved e-invoicing platform (plateforme agréée). If you invoice there, you can hide invoices here in Tune this app.
+          </p>
+          <button type="button" className={btnGhost} onClick={() => setPref(FRENCH_NOTE_SEEN, true)}>
+            Got it
+          </button>
+        </div>
+      )}
 
       <DocumentJourney
         doc={doc}

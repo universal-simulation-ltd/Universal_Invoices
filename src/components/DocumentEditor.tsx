@@ -8,6 +8,7 @@ import { renderPdf } from '../lib/pdf';
 import { KIND_NAMES, type InvoiceDoc } from '../lib/types';
 import { useAppStore } from '../stores/appStore';
 import { fileSize, openAttachment } from './attachments';
+import CurrencyConvert from './CurrencyConvert';
 import DocumentJourney from './DocumentJourney';
 import LinesEditor from './LinesEditor';
 import MoreMenu, { menuItem } from './MoreMenu';
@@ -583,13 +584,20 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                       <option value="standard">VAT on each line</option>
                     </select>
                   </Field>
-                  <Field label="Currency">
+                  <Field label="Currency" hint="Changes the symbol only. To change the amounts too, convert the prices below.">
                     <select className={selectCls} value={d.currency} onChange={(e) => edit('terms', { currency: e.target.value as InvoiceDoc['currency'] })}>
                       <option value="EUR">Euro (€)</option>
                       <option value="GBP">Pound sterling (£)</option>
                       <option value="USD">US dollar ($)</option>
                     </select>
                   </Field>
+                  <CurrencyConvert
+                    doc={d}
+                    onConvert={(r) => {
+                      edit('terms', { currency: r.currency });
+                      edit('lines', { lines: r.lines, discount: r.discount });
+                    }}
+                  />
                   {d.taxMode !== 'standard' && (
                     <Field label="Exemption wording" className="sm:col-span-2" hint="Printed under the totals.">
                       <input className={inputCls} value={d.taxNote} onChange={(e) => edit('terms', { taxNote: e.target.value })} />

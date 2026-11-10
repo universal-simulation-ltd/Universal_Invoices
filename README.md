@@ -24,6 +24,11 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   ⌘/Ctrl+S) — then the preview redraws; Download saves first. Hover a
   section, or type in it, and the preview marks and scrolls to the part of
   the PDF it fills in. The notes print as a full-width box under the totals.
+- **Editing on the page:** click a line on the preview to edit it in a card
+  under the row, or drag it up or down to move it (on a phone, hold it, then
+  drag). Click the company, the document's number and dates, the client or
+  the notes and terms, and that section's fields open on the page the same
+  way. Leaving the card saves, and the page redraws.
 - **Sign:** opens Universal Signatures over the document; draw or pick your
   signature, place it, Sign — the signed copy comes back and is kept with the
   document. While the document is unchanged, the preview, Download and Share

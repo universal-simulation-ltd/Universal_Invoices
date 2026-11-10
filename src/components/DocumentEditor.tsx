@@ -67,6 +67,10 @@ function withFields(doc: InvoiceDoc, from: InvoiceDoc, sections: Iterable<Sectio
 /** The form section that fills in a part of the PDF. */
 const SECTION_OF = Object.fromEntries(SECTIONS.flatMap((id) => PDF_PARTS[id].map((part) => [part, id]))) as Record<BusinessSection, SectionId>;
 
+/** The parts of the PDF a click edits on the page itself, and the section whose fields open there (lines have their own editor). */
+const ON_PAGE: Partial<Record<BusinessSection, Exclude<SectionId, 'lines'>>> = { issuer: 'from', document: 'document', client: 'client', notes: 'terms', terms: 'terms', signature: 'terms' };
+const ON_PAGE_PARTS = Object.keys(ON_PAGE) as BusinessSection[];
+
 /**
  * One document: the form on the left, the real PDF on the right. Full width
  * on purpose — the editor is the app, and a narrow card in the middle of a
@@ -247,8 +251,13 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
   // for its Undo.
   const [lineOpen, setLineOpen] = useState<number | null>(null);
   const [removed, setRemoved] = useState<{ line: DocLine; index: number; at: number } | null>(null);
+  // The rest of the page, the same way (backlog, 2026-11-10: "parties, dates
+  // and notes on the page"): the part whose section's fields are open on it.
+  const [partOpen, setPartOpen] = useState<BusinessSection | null>(null);
+  const partSection = partOpen ? ON_PAGE[partOpen] : undefined;
   useEffect(() => {
     setLineOpen(null);
+    setPartOpen(null);
     setRemoved(null);
   }, [doc.id]);
   useEffect(() => {
@@ -265,7 +274,30 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
   };
   const openLine = (line: number | null) => {
     saveLines();
+    if (line !== null) setPartOpen(null);
     setLineOpen(line);
+  };
+  const savePart = () => {
+    if (partSection && dirty.has(partSection)) save([partSection]);
+  };
+  const openPart = (part: BusinessSection | null) => {
+    savePart();
+    if (part) {
+      saveLines();
+      setLineOpen(null);
+    }
+    setPartOpen(part);
+  };
+  // A row dragged on the preview to slot `to` (PdfPreview). The open editor,
+  // if any, stays on the same line wherever it lands.
+  const moveLine = (from: number, to: number) => {
+    if (from >= draft.lines.length) return;
+    const openId = lineOpen !== null ? draft.lines[lineOpen]?.id : undefined;
+    const next = [...draft.lines];
+    const [line] = next.splice(from, 1);
+    next.splice(to > from ? to - 1 : to, 0, line);
+    edit('lines', { lines: next });
+    if (openId) setLineOpen(next.findIndex((l) => l.id === openId));
   };
   const addLine = (line: DocLine) => {
     edit('lines', { lines: [...draft.lines, line] });
@@ -302,6 +334,233 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
     onHold: hold,
     onFocusIn: (on: boolean) => setFocused((f) => (on ? id : f === id ? null : f)),
   });
+
+  // Each section's fields, written once: in the form, and in the card that
+  // opens on the page when that part of the PDF is clicked.
+  const fromActions =
+    company && (
+      <button
+        type="button"
+        className={btnGhost}
+        title="This document keeps the company details it was made with. Take the current ones instead."
+        onClick={() => {
+          // Its bank too, which is Terms and notes' to save.
+          edit('from', { issuer: issuerSnapshot(company) });
+          edit('terms', {});
+        }}
+      >
+        Use current company details
+      </button>
+    );
+  const fromBody = (
+    <>
+      <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{d.issuer.name || 'No company'}</p>
+      {d.issuer.address.length > 0 && <p className="text-sm text-slate-500 dark:text-slate-400">{d.issuer.address.filter(Boolean).join(', ')}</p>}
+    </>
+  );
+  const documentBody = (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <Field label="Number">
+        <input className={inputCls} value={d.number} onChange={(e) => edit('document', { number: e.target.value })} />
+      </Field>
+      <Field label="Date">
+        <input type="date" className={inputCls} value={d.date} onChange={(e) => edit('document', { date: e.target.value })} />
+      </Field>
+      {dated && (
+        <Field label={dated === 'dueDate' ? 'Due date' : 'Valid until'}>
+          <input
+            type="date"
+            className={`${inputCls} ${expired ? 'ring-2 ring-amber-400' : ''}`}
+            value={d[dated] ?? ''}
+            aria-invalid={expired || undefined}
+            onChange={(e) => edit('document', { [dated]: e.target.value || undefined })}
+          />
+          {/* James, 2026-11-03: "warn if validity … is the date of the document or earlier". */}
+          {expired && (
+            <span className="mt-1 block text-xs font-medium text-amber-700 dark:text-amber-400">
+              {d.validUntil === d.date ? 'This is the document’s own date' : 'This is before the document’s date'} — the offer would have expired as it is sent.
+            </span>
+          )}
+        </Field>
+      )}
+      <Field label="Subject" className={dated ? '' : 'sm:col-span-2'}>
+        <input className={inputCls} value={d.subject} placeholder="Quote for…" onChange={(e) => edit('document', { subject: e.target.value })} />
+      </Field>
+    </div>
+  );
+  const clientActions = (
+    <>
+      {clients.length > 0 && (
+        <select
+          className={selectBase}
+          value={d.clientId ?? ''}
+          aria-label="Choose a client"
+          onChange={(e) => {
+            const c = clients.find((x) => x.id === e.target.value);
+            if (c) edit('client', { clientId: c.id, client: clientSnapshot(c) });
+          }}
+        >
+          <option value="">Choose a saved client…</option>
+          {[...clients]
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+        </select>
+      )}
+      {!d.clientId && d.client.name.trim() && (
+        <button
+          type="button"
+          className={btnGhost}
+          onClick={() => {
+            const client = clientFromSnapshot(d.client);
+            void saveClient(client);
+            edit('client', { clientId: client.id });
+          }}
+        >
+          Save to clients
+        </button>
+      )}
+    </>
+  );
+  const clientBody = (
+    <>
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <Field label="Name">
+          <input className={inputCls} value={d.client.name} onChange={(e) => edit('client', { client: { ...d.client, name: e.target.value } })} />
+        </Field>
+        <Field label="Client no.">
+          <input className={inputCls} value={d.client.reference} onChange={(e) => edit('client', { client: { ...d.client, reference: e.target.value } })} />
+        </Field>
+        <Field label="Address" className="sm:col-span-2">
+          <LinesInput rows={3} value={d.client.address} onChange={(address) => edit('client', { client: { ...d.client, address } })} />
+        </Field>
+      </div>
+      {/* Printed "Attn: name, role" and the email under the address.
+          One under another, each the full width (James, 2026-11-03:
+          "stack contact name, role, email, so each gets more space"). */}
+      <div className="mt-3 grid gap-3">
+        {(['name', 'role', 'email'] as const).map((k) => (
+          <Field key={k} label={k === 'name' ? 'Contact name' : k === 'role' ? 'Role' : 'Email'}>
+            <input
+              className={inputCls}
+              type={k === 'email' ? 'email' : 'text'}
+              value={d.client.contact?.[k] ?? ''}
+              onChange={(e) => {
+                const contact = { name: '', role: '', email: '', ...d.client.contact, [k]: e.target.value };
+                const client: InvoiceDoc['client'] = { ...d.client, contact };
+                if (!contact.name && !contact.role && !contact.email) delete client.contact;
+                edit('client', { client });
+              }}
+            />
+          </Field>
+        ))}
+      </div>
+    </>
+  );
+  const termsBody = (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {d.kind !== 'delivery-note' && (
+        <Field label="Payment terms" className="sm:col-span-2">
+          <input className={inputCls} value={d.paymentTerms} onChange={(e) => edit('terms', { paymentTerms: e.target.value })} />
+        </Field>
+      )}
+      {/* The bank this document is paid into (James, 2026-11-03: "select
+          between multiple banks / make edits directly"): one of the
+          company's accounts, or edited here for this document alone.
+          Under the payment terms, as on the PDF — not up in From. */}
+      {d.kind !== 'delivery-note' && (
+        <div className="space-y-2 sm:col-span-2">
+          {company && (company.moreBanks?.length ?? 0) > 0 && (
+            <Field label="Bank account">
+              <select
+                className={selectCls}
+                value={bankChoice}
+                onChange={(e) => {
+                  const lines = e.target.value === 'main' ? company.bank : company.moreBanks!.find((b) => b.id === e.target.value)?.lines;
+                  if (lines) edit('terms', { issuer: { ...d.issuer, bank: [...lines] } });
+                }}
+              >
+                <option value="main">Main account{company.bank[0] ? ` — ${company.bank[0]}` : ''}</option>
+                {company.moreBanks!.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.label || b.lines[0] || 'Unnamed account'}
+                  </option>
+                ))}
+                {bankChoice === 'edited' && <option value="edited">Edited for this document</option>}
+              </select>
+            </Field>
+          )}
+          <Field label="Bank details on this document" hint="Changes here are for this document only — the company keeps its own.">
+            <LinesInput rows={3} value={d.issuer.bank} onChange={(bank) => edit('terms', { issuer: { ...d.issuer, bank } })} />
+          </Field>
+        </div>
+      )}
+      <Field label="Notes" className="sm:col-span-2">
+        <GrowingTextarea className={`${inputCls} resize-y`} rows={3} value={d.notes} onChange={(e) => edit('terms', { notes: e.target.value })} />
+      </Field>
+      {d.kind !== 'delivery-note' && (
+        <>
+          <Field label="Tax">
+            <select className={selectCls} value={d.taxMode} onChange={(e) => edit('terms', { taxMode: e.target.value as InvoiceDoc['taxMode'] })}>
+              <option value="export-exempt">No VAT — export</option>
+              <option value="reverse-charge">No VAT — reverse charge</option>
+              <option value="standard">VAT on each line</option>
+            </select>
+          </Field>
+          <Field label="Currency" hint="Changes the symbol only. To change the amounts too, convert the prices below.">
+            <select className={selectCls} value={d.currency} onChange={(e) => edit('terms', { currency: e.target.value as InvoiceDoc['currency'] })}>
+              <option value="EUR">Euro (€)</option>
+              <option value="GBP">Pound sterling (£)</option>
+              <option value="USD">US dollar ($)</option>
+            </select>
+          </Field>
+          <CurrencyConvert
+            doc={d}
+            onConvert={(r, where) => {
+              if (where === 'copy') {
+                // What is being edited here is saved first, so the copy is of this document as it reads now.
+                save(dirty);
+                void duplicate(doc.id, { currency: r.currency, lines: r.lines, discount: r.discount });
+                return;
+              }
+              snapshot('convert');
+              edit('terms', { currency: r.currency });
+              edit('lines', { lines: r.lines, discount: r.discount });
+            }}
+          />
+          {d.taxMode !== 'standard' && (
+            <Field label="Exemption wording" className="sm:col-span-2" hint="Printed under the totals.">
+              <input className={inputCls} value={d.taxNote} onChange={(e) => edit('terms', { taxNote: e.target.value })} />
+            </Field>
+          )}
+        </>
+      )}
+      <Field label="Document language">
+        <select className={selectCls} value={d.language} onChange={(e) => edit('terms', { language: e.target.value as InvoiceDoc['language'] })}>
+          <option value="en">English</option>
+          <option value="fr">Français</option>
+        </select>
+      </Field>
+      <Field label="Numbers look like">
+        <select className={selectCls} value={d.numberStyle} onChange={(e) => edit('terms', { numberStyle: e.target.value as InvoiceDoc['numberStyle'] })}>
+          <option value="fr">163 000,00 €</option>
+          <option value="en">€163,000.00</option>
+        </select>
+      </Field>
+      <label className="flex items-center gap-2 text-sm text-slate-700 sm:col-span-2 dark:text-slate-300">
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-orange-600"
+          checked={d.signature ?? (d.kind === 'quote' || d.kind === 'estimate' || d.kind === 'delivery-note')}
+          onChange={(e) => edit('terms', { signature: e.target.checked })}
+        />
+        Leave space for a signature
+      </label>
+    </div>
+  );
 
   return (
     <div className="space-y-4" onKeyDown={onKeyDown}>
@@ -464,131 +723,22 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
             {...section('from')}
             title="From"
             summary={d.issuer.name || 'No company'}
-            actions={
-              company && (
-                <button
-                  type="button"
-                  className={btnGhost}
-                  title="This document keeps the company details it was made with. Take the current ones instead."
-                  onClick={() => {
-                    // Its bank too, which is Terms and notes' to save.
-                    edit('from', { issuer: issuerSnapshot(company) });
-                    edit('terms', {});
-                  }}
-                >
-                  Use current company details
-                </button>
-              )
-            }
+            actions={fromActions}
           >
-            <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{d.issuer.name || 'No company'}</p>
-            {d.issuer.address.length > 0 && <p className="text-sm text-slate-500 dark:text-slate-400">{d.issuer.address.filter(Boolean).join(', ')}</p>}
+            {fromBody}
           </Section>
 
           <Section {...section('document')} title="Document" summary={[d.number, d.subject].filter(Boolean).join(' · ')}>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Number">
-                <input className={inputCls} value={d.number} onChange={(e) => edit('document', { number: e.target.value })} />
-              </Field>
-              <Field label="Date">
-                <input type="date" className={inputCls} value={d.date} onChange={(e) => edit('document', { date: e.target.value })} />
-              </Field>
-              {dated && (
-                <Field label={dated === 'dueDate' ? 'Due date' : 'Valid until'}>
-                  <input
-                    type="date"
-                    className={`${inputCls} ${expired ? 'ring-2 ring-amber-400' : ''}`}
-                    value={d[dated] ?? ''}
-                    aria-invalid={expired || undefined}
-                    onChange={(e) => edit('document', { [dated]: e.target.value || undefined })}
-                  />
-                  {/* James, 2026-11-03: "warn if validity … is the date of the document or earlier". */}
-                  {expired && (
-                    <span className="mt-1 block text-xs font-medium text-amber-700 dark:text-amber-400">
-                      {d.validUntil === d.date ? 'This is the document’s own date' : 'This is before the document’s date'} — the offer would have expired as it is sent.
-                    </span>
-                  )}
-                </Field>
-              )}
-              <Field label="Subject" className={dated ? '' : 'sm:col-span-2'}>
-                <input className={inputCls} value={d.subject} placeholder="Quote for…" onChange={(e) => edit('document', { subject: e.target.value })} />
-              </Field>
-            </div>
+            {documentBody}
           </Section>
 
           <Section
             {...section('client')}
             title="Client"
             summary={d.client.name || 'No client yet'}
-            actions={
-              <>
-                {clients.length > 0 && (
-                  <select
-                    className={selectBase}
-                    value={d.clientId ?? ''}
-                    aria-label="Choose a client"
-                    onChange={(e) => {
-                      const c = clients.find((x) => x.id === e.target.value);
-                      if (c) edit('client', { clientId: c.id, client: clientSnapshot(c) });
-                    }}
-                  >
-                    <option value="">Choose a saved client…</option>
-                    {[...clients]
-                      .sort((a, b) => a.name.localeCompare(b.name))
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                  </select>
-                )}
-                {!d.clientId && d.client.name.trim() && (
-                  <button
-                    type="button"
-                    className={btnGhost}
-                    onClick={() => {
-                      const client = clientFromSnapshot(d.client);
-                      void saveClient(client);
-                      edit('client', { clientId: client.id });
-                    }}
-                  >
-                    Save to clients
-                  </button>
-                )}
-              </>
-            }
+            actions={clientActions}
           >
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-              <Field label="Name">
-                <input className={inputCls} value={d.client.name} onChange={(e) => edit('client', { client: { ...d.client, name: e.target.value } })} />
-              </Field>
-              <Field label="Client no.">
-                <input className={inputCls} value={d.client.reference} onChange={(e) => edit('client', { client: { ...d.client, reference: e.target.value } })} />
-              </Field>
-              <Field label="Address" className="sm:col-span-2">
-                <LinesInput rows={3} value={d.client.address} onChange={(address) => edit('client', { client: { ...d.client, address } })} />
-              </Field>
-            </div>
-            {/* Printed "Attn: name, role" and the email under the address.
-                One under another, each the full width (James, 2026-11-03:
-                "stack contact name, role, email, so each gets more space"). */}
-            <div className="mt-3 grid gap-3">
-              {(['name', 'role', 'email'] as const).map((k) => (
-                <Field key={k} label={k === 'name' ? 'Contact name' : k === 'role' ? 'Role' : 'Email'}>
-                  <input
-                    className={inputCls}
-                    type={k === 'email' ? 'email' : 'text'}
-                    value={d.client.contact?.[k] ?? ''}
-                    onChange={(e) => {
-                      const contact = { name: '', role: '', email: '', ...d.client.contact, [k]: e.target.value };
-                      const client: InvoiceDoc['client'] = { ...d.client, contact };
-                      if (!contact.name && !contact.role && !contact.email) delete client.contact;
-                      edit('client', { client });
-                    }}
-                  />
-                </Field>
-              ))}
-            </div>
+            {clientBody}
           </Section>
 
           <Section
@@ -597,8 +747,8 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
             summary={`${d.lines.length} line${d.lines.length === 1 ? '' : 's'}${d.kind === 'delivery-note' ? '' : ` · ${formatMoney(computeTotals(d).gross, d.currency, d.numberStyle, true)}`}`}
           >
             <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
-              <span className="lg:hidden">Or tap a line under Preview to edit it there.</span>
-              <span className="hidden lg:inline">Or click a line on the preview to edit it there.</span>
+              <span className="lg:hidden">Or tap a line under Preview to edit it there; hold it, then drag, to move it.</span>
+              <span className="hidden lg:inline">Or click a line on the preview to edit it there, or drag it to move it.</span>
             </p>
             <LinesEditor
               doc={d}
@@ -612,105 +762,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
           </Section>
 
           <Section {...section('terms')} title="Terms and notes" summary={d.paymentTerms || d.notes.split('\n')[0]}>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {d.kind !== 'delivery-note' && (
-                <Field label="Payment terms" className="sm:col-span-2">
-                  <input className={inputCls} value={d.paymentTerms} onChange={(e) => edit('terms', { paymentTerms: e.target.value })} />
-                </Field>
-              )}
-              {/* The bank this document is paid into (James, 2026-11-03: "select
-                  between multiple banks / make edits directly"): one of the
-                  company's accounts, or edited here for this document alone.
-                  Under the payment terms, as on the PDF — not up in From. */}
-              {d.kind !== 'delivery-note' && (
-                <div className="space-y-2 sm:col-span-2">
-                  {company && (company.moreBanks?.length ?? 0) > 0 && (
-                    <Field label="Bank account">
-                      <select
-                        className={selectCls}
-                        value={bankChoice}
-                        onChange={(e) => {
-                          const lines = e.target.value === 'main' ? company.bank : company.moreBanks!.find((b) => b.id === e.target.value)?.lines;
-                          if (lines) edit('terms', { issuer: { ...d.issuer, bank: [...lines] } });
-                        }}
-                      >
-                        <option value="main">Main account{company.bank[0] ? ` — ${company.bank[0]}` : ''}</option>
-                        {company.moreBanks!.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.label || b.lines[0] || 'Unnamed account'}
-                          </option>
-                        ))}
-                        {bankChoice === 'edited' && <option value="edited">Edited for this document</option>}
-                      </select>
-                    </Field>
-                  )}
-                  <Field label="Bank details on this document" hint="Changes here are for this document only — the company keeps its own.">
-                    <LinesInput rows={3} value={d.issuer.bank} onChange={(bank) => edit('terms', { issuer: { ...d.issuer, bank } })} />
-                  </Field>
-                </div>
-              )}
-              <Field label="Notes" className="sm:col-span-2">
-                <GrowingTextarea className={`${inputCls} resize-y`} rows={3} value={d.notes} onChange={(e) => edit('terms', { notes: e.target.value })} />
-              </Field>
-              {d.kind !== 'delivery-note' && (
-                <>
-                  <Field label="Tax">
-                    <select className={selectCls} value={d.taxMode} onChange={(e) => edit('terms', { taxMode: e.target.value as InvoiceDoc['taxMode'] })}>
-                      <option value="export-exempt">No VAT — export</option>
-                      <option value="reverse-charge">No VAT — reverse charge</option>
-                      <option value="standard">VAT on each line</option>
-                    </select>
-                  </Field>
-                  <Field label="Currency" hint="Changes the symbol only. To change the amounts too, convert the prices below.">
-                    <select className={selectCls} value={d.currency} onChange={(e) => edit('terms', { currency: e.target.value as InvoiceDoc['currency'] })}>
-                      <option value="EUR">Euro (€)</option>
-                      <option value="GBP">Pound sterling (£)</option>
-                      <option value="USD">US dollar ($)</option>
-                    </select>
-                  </Field>
-                  <CurrencyConvert
-                    doc={d}
-                    onConvert={(r, where) => {
-                      if (where === 'copy') {
-                        // What is being edited here is saved first, so the copy is of this document as it reads now.
-                        save(dirty);
-                        void duplicate(doc.id, { currency: r.currency, lines: r.lines, discount: r.discount });
-                        return;
-                      }
-                      snapshot('convert');
-                      edit('terms', { currency: r.currency });
-                      edit('lines', { lines: r.lines, discount: r.discount });
-                    }}
-                  />
-                  {d.taxMode !== 'standard' && (
-                    <Field label="Exemption wording" className="sm:col-span-2" hint="Printed under the totals.">
-                      <input className={inputCls} value={d.taxNote} onChange={(e) => edit('terms', { taxNote: e.target.value })} />
-                    </Field>
-                  )}
-                </>
-              )}
-              <Field label="Document language">
-                <select className={selectCls} value={d.language} onChange={(e) => edit('terms', { language: e.target.value as InvoiceDoc['language'] })}>
-                  <option value="en">English</option>
-                  <option value="fr">Français</option>
-                </select>
-              </Field>
-              <Field label="Numbers look like">
-                <select className={selectCls} value={d.numberStyle} onChange={(e) => edit('terms', { numberStyle: e.target.value as InvoiceDoc['numberStyle'] })}>
-                  <option value="fr">163 000,00 €</option>
-                  <option value="en">€163,000.00</option>
-                </select>
-              </Field>
-              <label className="flex items-center gap-2 text-sm text-slate-700 sm:col-span-2 dark:text-slate-300">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 accent-orange-600"
-                  checked={d.signature ?? (d.kind === 'quote' || d.kind === 'estimate' || d.kind === 'delivery-note')}
-                  onChange={(e) => edit('terms', { signature: e.target.checked })}
-                />
-                Leave space for a signature
-              </label>
-            </div>
+            {termsBody}
           </Section>
         </div>
 
@@ -723,10 +775,32 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
               hovered={overSection ? PDF_PARTS[overSection] : null}
               onHover={setOverPart}
               onPick={openFromPdf}
+              parts={{
+                editable: ON_PAGE_PARTS,
+                open: partOpen,
+                onOpen: openPart,
+                onLeave: savePart,
+                editor: partSection && (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className={`${sectionTitle} mr-auto`}>{SECTION_TITLES[partSection]}</h3>
+                      {partSection === 'from' ? fromActions : partSection === 'client' ? clientActions : null}
+                    </div>
+                    {partSection === 'from' ? fromBody : partSection === 'document' ? documentBody : partSection === 'client' ? clientBody : termsBody}
+                    {partSection === 'from' && <p className="text-xs text-slate-500 dark:text-slate-400">The company’s own details are changed in Your companies.</p>}
+                    <div className="flex justify-end">
+                      <button type="button" className={btnPrimary} onClick={() => openPart(null)}>
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                ),
+              }}
               lines={{
                 open: lineOpen !== null && lineOpen < d.lines.length ? lineOpen : null,
                 onOpen: openLine,
                 onLeave: saveLines,
+                onMoveTo: moveLine,
                 editor: lineOpen !== null && d.lines[lineOpen] && (
                   <>
                     <LineFields

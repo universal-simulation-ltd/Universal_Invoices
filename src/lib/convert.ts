@@ -20,6 +20,21 @@ function imageOf(stored: StoredImage | undefined): PdfImage | null {
   return { jpeg, width: stored.width, height: stored.height };
 }
 
+/** "Origin: France" / "Origine : France", in the document's language. */
+const ORIGIN_LABEL: Record<InvoiceDoc['language'], string> = { en: 'Origin: ', fr: 'Origine : ' };
+
+/**
+ * A line's description as printed: with its country of origin on a line of
+ * its own underneath, when the document shows origins. @unisim/doc has no
+ * origin column, and a narrow column for a word or two would cost the
+ * description its room.
+ */
+export function printedDescription(line: Pick<DocLine, 'description' | 'origin'>, doc: Pick<InvoiceDoc, 'showOrigin' | 'language'>): string {
+  const origin = doc.showOrigin ? line.origin?.trim() : '';
+  if (!origin) return line.description;
+  return [line.description.replace(/\s+$/, ''), `${ORIGIN_LABEL[doc.language]}${origin}`].filter(Boolean).join('\n');
+}
+
 /** Blank lines drop out of the printed address blocks. */
 const lines = (xs: string[]) => xs.map((x) => x.trim()).filter(Boolean);
 
@@ -54,9 +69,10 @@ export function toBusinessDoc(doc: InvoiceDoc): BusinessDoc {
     lines: doc.lines.map((l) => ({
       image: imageOf(l.image),
       code: l.code,
-      description: l.description,
+      description: printedDescription(l, doc),
       quantity: l.quantity,
-      unit: printedUnit(l.unit, l.quantity, doc.language),
+      // Units print only when the document asks for them (James, 2026-11-11).
+      unit: doc.showUnits ? printedUnit(l.unit, l.quantity, doc.language) : undefined,
       unitPrice: l.unitPrice,
       discount: l.discount,
       taxRate: l.taxRate,
@@ -136,6 +152,8 @@ export function newDocument(
     lines: [],
     notes: d.notes,
     paymentTerms: d.paymentTerms,
+    ...(d.showUnits ? { showUnits: true } : {}),
+    ...(d.showOrigin ? { showOrigin: true } : {}),
     createdAt: now,
     updatedAt: now,
   };
@@ -174,6 +192,8 @@ export function convertDocument(
       ...(source.discount ? { discount: { ...source.discount } } : {}),
       notes: source.notes,
       paymentTerms: source.paymentTerms,
+      showUnits: source.showUnits,
+      showOrigin: source.showOrigin,
       sourceId: source.id,
     },
   };
@@ -198,10 +218,16 @@ export function freshDocument(source: InvoiceDoc, kind: BusinessDocKind, company
   };
 }
 
-/** A copy with a fresh number — "Duplicate". Status goes back to draft. */
-export function duplicateDocument(source: InvoiceDoc, company: Company, date: string): { doc: InvoiceDoc; company: Company } {
+/**
+ * A copy with a fresh number — "Duplicate". Status goes back to draft. On its
+ * own it starts a project of its own; `sameProject` keeps it in the source's
+ * (the copy in another currency and the customs copy — James, 2026-11-11:
+ * "when creating a duplicate of a document in another currency, keep it
+ * within the same group of documents").
+ */
+export function duplicateDocument(source: InvoiceDoc, company: Company, date: string, sameProject = false): { doc: InvoiceDoc; company: Company } {
   const out = convertDocument(source, source.kind, company, date);
-  return { ...out, doc: { ...out.doc, sourceId: undefined } };
+  return { ...out, doc: { ...out.doc, sourceId: sameProject ? source.id : undefined } };
 }
 
 /**
@@ -254,6 +280,7 @@ export function lineFromProduct(p: { id: string } & Omit<DocLine, 'id' | 'quanti
     unit: p.unit,
     unitPrice: p.unitPrice,
     taxRate: p.taxRate,
+    ...(p.origin?.trim() ? { origin: p.origin.trim() } : {}),
   };
 }
 
@@ -372,7 +399,10 @@ export function withCataloguePictures(lines: DocLine[], products: Product[]): Do
  */
 export function pdfFingerprint(doc: InvoiceDoc): string {
   const { kind, number, date, validUntil, dueDate, subject, issuer, client, lines, discount, notes, paymentTerms, taxMode, taxNote, currency, language, numberStyle, signature } = doc;
-  const text = JSON.stringify([kind, number, date, validUntil, dueDate, subject, issuer, client, lines, discount, notes, paymentTerms, taxMode, taxNote, currency, language, numberStyle, signature]);
+  const printed: unknown[] = [kind, number, date, validUntil, dueDate, subject, issuer, client, lines, discount, notes, paymentTerms, taxMode, taxNote, currency, language, numberStyle, signature];
+  // Added 2026-11-11, and only when ticked, so a document signed before then keeps its fingerprint.
+  if (doc.showUnits || doc.showOrigin) printed.push({ showUnits: !!doc.showUnits, showOrigin: !!doc.showOrigin });
+  const text = JSON.stringify(printed);
   // FNV-1a, 32-bit, twice over (forwards and with a different basis) — plenty to spot a change.
   let a = 0x811c9dc5;
   let b = 0x01000193;

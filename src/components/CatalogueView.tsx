@@ -441,6 +441,9 @@ export default function CatalogueView() {
                 <DecimalInput value={p.taxRate} onChange={(taxRate) => set({ taxRate })} placeholder="—" />
               </Field>
             </div>
+            <Field label="Country of origin" className="sm:col-start-2" hint="Where it was made, for customs. Printed on a document only when you tick Show the country of origin there.">
+              <input className={inputCls} value={p.origin ?? ''} placeholder="e.g. France" onChange={(e) => set({ origin: e.target.value || undefined })} />
+            </Field>
             {mine.length > 0 && (
               <div className="sm:col-start-2">
                 <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Sold by</span>

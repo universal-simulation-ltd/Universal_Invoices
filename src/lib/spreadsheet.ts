@@ -175,6 +175,7 @@ const PRODUCT_COLUMNS: Column<Product & { folder: string }>[] = [
   { header: 'Unit', width: 8, get: (p) => p.unit },
   { header: 'Catalogue price', width: 12, get: (p) => money(p.unitPrice) },
   { header: 'VAT rate %', width: 9, get: (p) => p.taxRate ?? null },
+  { header: 'Country of origin', width: 14, get: (p) => p.origin ?? null },
 ];
 
 const DOCUMENT_COLUMNS: Column<InvoiceDoc>[] = [
@@ -231,6 +232,7 @@ const LINE_COLUMNS: Column<LineRow>[] = [
   { header: 'Unit price', width: 12, get: (r) => money(r.line.unitPrice) },
   { header: 'Discount', width: 10, get: (r) => discountCell(r.line.discount) },
   { header: 'VAT rate %', width: 9, get: (r) => r.line.taxRate ?? null },
+  { header: 'Country of origin', width: 14, get: (r) => r.line.origin ?? null },
 ];
 
 const SHEETS = { companies: 'Companies', clients: 'Clients', products: 'Catalogue', documents: 'Documents', lines: 'Lines' } as const;
@@ -459,6 +461,9 @@ export function planImport(current: Dataset, bytes: Uint8Array, now = Date.now()
 
   const products = new Map(current.products.map((p) => [p.id, p]));
   const folderColumn = hasColumn(sheets, SHEETS.products, 'Folder');
+  // No Country of origin column (a sheet from before 2026-11-11) keeps the origins there are.
+  const originColumn = hasColumn(sheets, SHEETS.products, 'Country of origin');
+  const lineOriginColumn = hasColumn(sheets, SHEETS.lines, 'Country of origin');
   for (const r of rowsOf(sheets, SHEETS.products)) {
     const id = idOf(r) || makeId();
     const old = products.get(id);
@@ -476,12 +481,14 @@ export function planImport(current: Dataset, bytes: Uint8Array, now = Date.now()
       // "Unit price" in a sheet from before 2026-11-03.
       unitPrice: toMinor(r('Catalogue price') ?? r('Unit price')) ?? 0,
       taxRate: toNumber(r('VAT rate %')),
+      origin: originColumn ? optional(str(r('Country of origin'))) : old?.origin,
       folderId,
       updatedAt: now,
     };
     delete next.example;
     delete (next as { listPrice?: number }).listPrice;
     if (next.taxRate === undefined) delete next.taxRate;
+    if (next.origin === undefined) delete next.origin;
     if (next.folderId === undefined) delete next.folderId;
     products.set(id, settle('products', old, next));
   }
@@ -558,11 +565,12 @@ export function planImport(current: Dataset, bytes: Uint8Array, now = Date.now()
             unitPrice: toMinor(lr('Unit price')) ?? 0,
             discount: toDiscount(lr('Discount')),
             taxRate: toNumber(lr('VAT rate %')),
+            origin: lineOriginColumn ? optional(str(lr('Country of origin'))) : was?.origin,
           };
           // A sheet from before 2026-11-03: a list price above the price is that price less a discount.
           const list = toMinor(lr('List price'));
           if (list !== undefined && list > line.unitPrice && !line.discount) Object.assign(line, { unitPrice: list, discount: { amount: list - line.unitPrice } });
-          for (const k of ['productId', 'image', 'discount', 'taxRate'] as const) if (line[k] === undefined) delete line[k];
+          for (const k of ['productId', 'image', 'discount', 'taxRate', 'origin'] as const) if (line[k] === undefined) delete line[k];
           return line;
         })
       : old.lines;

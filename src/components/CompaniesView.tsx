@@ -258,6 +258,16 @@ export default function CompaniesView() {
                 <Field label="Notes" className="sm:col-span-2">
                   <GrowingTextarea className={`${inputCls} resize-y`} rows={2} value={d.notes} onChange={(e) => setDefaults({ notes: e.target.value })} />
                 </Field>
+                <div className="flex flex-col justify-end gap-2 pb-1 text-sm text-slate-700 dark:text-slate-300">
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" className="h-4 w-4 shrink-0 accent-orange-600" checked={!!d.showUnits} onChange={(e) => setDefaults({ showUnits: e.target.checked || undefined })} />
+                    Show units
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" className="h-4 w-4 shrink-0 accent-orange-600" checked={!!d.showOrigin} onChange={(e) => setDefaults({ showOrigin: e.target.checked || undefined })} />
+                    Show the country of origin
+                  </label>
+                </div>
               </div>
             </div>
 

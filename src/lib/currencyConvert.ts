@@ -51,7 +51,7 @@ export function convertPrices(doc: InvoiceDoc, currency: InvoiceDoc['currency'],
  * the totals no single line can reach (quantities and VAT rounding). Gives
  * back the lines unchanged when nothing nearby lands exactly.
  */
-function landOn(target: number, lines: DocLine[], totalOf: (ls: DocLine[]) => number): DocLine[] {
+export function landOn(target: number, lines: DocLine[], totalOf: (ls: DocLine[]) => number): DocLine[] {
   if (totalOf(lines) === target) return lines;
   const off = target - totalOf(lines);
   const order = lines

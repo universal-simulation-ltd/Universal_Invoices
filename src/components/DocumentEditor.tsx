@@ -14,6 +14,7 @@ import { useAppStore } from '../stores/appStore';
 import { fileSize, openAttachment } from './attachments';
 import CataloguePicker from './CatalogueAdd';
 import CurrencyConvert from './CurrencyConvert';
+import CustomsCopy from './CustomsCopy';
 import DocumentJourney from './DocumentJourney';
 import DocumentVersions from './DocumentVersions';
 import LineFields from './LineFields';
@@ -22,7 +23,7 @@ import MoreMenu, { menuItem } from './MoreMenu';
 import PdfPreview from './PdfPreview';
 import ShareLink from './ShareLink';
 import SignDialog, { type Signed } from './SignDialog';
-import { ExampleChip, Field, LinesInput, btnGhost, btnPrimary, card, confirmAction, inputCls, sectionTitle, selectBase, selectCls, useMedia } from './ui';
+import { ExampleChip, Field, LinesInput, btnGhost, btnPrimary, card, checkboxCls, confirmAction, inputCls, sectionTitle, selectBase, selectCls, useMedia } from './ui';
 
 /**
  * The form's sections, the fields each one edits, and the parts of the PDF it
@@ -38,7 +39,7 @@ const FIELDS: Record<SectionId, (keyof InvoiceDoc)[]> = {
   from: ['issuer'],
   document: ['number', 'date', 'validUntil', 'dueDate', 'subject'],
   client: ['clientId', 'client'],
-  lines: ['lines', 'discount'],
+  lines: ['lines', 'discount', 'showUnits', 'showOrigin'],
   // Payment details and Notes and more were one section, "Terms and notes",
   // until 2026-11-10 (James: "split terms and notes into two separate
   // sections", and "use 'Notes and more' instead as payment terms will go in
@@ -91,6 +92,7 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
   const { companies, clients, products, folders, updateDocument, deleteMany, duplicate, open, saveClient } = useAppStore();
   const company = companies.find((c) => c.id === doc.companyId);
   const [pane, setPane] = useState<'edit' | 'preview'>('edit');
+  const [customs, setCustoms] = useState(false);
 
   // The working copy, and the sections with edits not saved yet.
   const [draft, setDraft] = useState(doc);
@@ -609,7 +611,8 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
               if (where === 'copy') {
                 // What is being edited here is saved first, so the copy is of this document as it reads now.
                 save(dirty);
-                void duplicate(doc.id, { currency: r.currency, lines: r.lines, discount: r.discount });
+                // In the same project as this one (James, 2026-11-11), so it groups with it.
+                void duplicate(doc.id, { currency: r.currency, lines: r.lines, discount: r.discount }, true);
                 return;
               }
               snapshot('convert');
@@ -693,6 +696,19 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
               >
                 Duplicate
               </button>
+              {doc.kind !== 'delivery-note' && doc.lines.length > 0 && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={menuItem}
+                  onClick={() => {
+                    close();
+                    setCustoms(true);
+                  }}
+                >
+                  Customs copy…
+                </button>
+              )}
               <button
                 type="button"
                 role="menuitem"
@@ -711,6 +727,19 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
           )}
         </MoreMenu>
       </div>
+
+      {customs && (
+        <CustomsCopy
+          doc={d}
+          onClose={() => setCustoms(false)}
+          onMake={(r) => {
+            // What is being edited is saved first, so the copy is of this document as it reads now.
+            save(dirty);
+            setCustoms(false);
+            void duplicate(doc.id, { lines: r.lines, discount: r.discount }, true);
+          }}
+        />
+      )}
 
       {signing && <SignDialog doc={doc} pdf={signing} onSigned={(x) => void onSigned(x)} onClose={() => setSigning(null)} />}
 
@@ -858,6 +887,18 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
                 </>
               }
             />
+            {/* What each line prints besides its description (James, 2026-11-11):
+                units are off unless asked for; the origin comes from the catalogue. */}
+            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-700 dark:text-slate-300">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" className={checkboxCls} checked={!!d.showUnits} onChange={(e) => edit('lines', { showUnits: e.target.checked || undefined })} />
+                Show units
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" className={checkboxCls} checked={!!d.showOrigin} onChange={(e) => edit('lines', { showOrigin: e.target.checked || undefined })} />
+                Show the country of origin
+              </label>
+            </div>
           </Section>
 
           {d.kind !== 'delivery-note' && (

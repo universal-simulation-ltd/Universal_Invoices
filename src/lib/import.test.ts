@@ -24,7 +24,8 @@ describe('import PDF', () => {
   const { company, client, product, doc } = exampleData('2026-10-29');
 
   it('reads back a quote this app printed', async () => {
-    const read = await readBack({ ...doc, client: clientSnapshot(client), notes: 'Thanks for your business.\nSecond line' });
+    // Units ticked on, so they print and can be read back (off by default since 2026-11-11).
+    const read = await readBack({ ...doc, showUnits: true, client: clientSnapshot(client), notes: 'Thanks for your business.\nSecond line' });
     expect(read).toMatchObject({
       kind: 'quote',
       number: doc.number,

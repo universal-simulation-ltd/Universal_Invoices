@@ -109,7 +109,11 @@ interface AppState {
   /** A journey step done outside the app — or, with null, back to "to do". Kept on the journey's first document. */
   markStep: (rootId: string, kind: BusinessDocKind, mark: JourneyMark | null) => void;
   /** A copy with a fresh number, opened. `patch` is applied to the copy (a currency conversion's prices). */
-  duplicate: (id: string, patch?: Partial<Pick<InvoiceDoc, 'currency' | 'lines' | 'discount'>>) => Promise<void>;
+  /**
+   * A copy with its own number, opened. `sameProject` keeps it in the
+   * source's project (the copy in another currency, the customs copy).
+   */
+  duplicate: (id: string, patch?: Partial<Pick<InvoiceDoc, 'currency' | 'lines' | 'discount' | 'subject'>>, sameProject?: boolean) => Promise<void>;
   /**
    * Duplicate a selection. Documents ticked from the same project are copied
    * as one new project (`duplicateJourney`); the rest one by one.
@@ -503,11 +507,11 @@ export const useAppStore = create<AppState>((set, get) => {
       else delete journey[kind];
       get().updateDocument({ ...root, journey });
     },
-    duplicate: async (id, patch) => {
+    duplicate: async (id, patch, sameProject = false) => {
       const source = get().documents.find((d) => d.id === id);
       const company = source && get().companies.find((c) => c.id === source.companyId);
       if (!source || !company) return;
-      const { doc, company: next } = duplicateDocument(patch ? { ...source, ...patch } : source, company, todayIso());
+      const { doc, company: next } = duplicateDocument(patch ? { ...source, ...patch } : source, company, todayIso(), sameProject);
       await added(doc, next);
     },
 

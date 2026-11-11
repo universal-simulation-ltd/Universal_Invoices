@@ -59,6 +59,10 @@ export interface CompanyDefaults {
   validityDays: number;
   /** Invoices: due date = date + this. */
   dueDays: number;
+  /** Ticks Show units on new documents. Off by default (James, 2026-11-11). */
+  showUnits?: boolean;
+  /** Ticks Show the country of origin on new documents. */
+  showOrigin?: boolean;
 }
 
 export interface BankAccount {
@@ -146,6 +150,13 @@ export interface Product {
   /** The catalogue price, minor units. Discounts are given on documents. */
   unitPrice: number;
   taxRate?: number;
+  /**
+   * Where it was made ("France", "China"), for customs (James, 2026-11-11:
+   * "add origin of product to the catalogue and give option to add it on to
+   * the documents"). Copied onto a line with the item; printed only on a
+   * document that ticks Show the country of origin.
+   */
+  origin?: string;
   image?: StoredImage;
   /** The catalogue folder it sits in (lib/arrange.ts); unknown or gone = the top level. */
   folderId?: string;
@@ -187,6 +198,8 @@ export interface DocLine {
   /** Off each unit: the PDF prints the catalogue price struck through above the discounted one. */
   discount?: Discount;
   taxRate?: number;
+  /** Country of origin, from the catalogue item or typed. Printed under the description when the document shows origins. */
+  origin?: string;
 }
 
 /** A document's copy of the client's contact person. */
@@ -256,6 +269,15 @@ export interface InvoiceDoc {
   paymentTerms: string;
   /** Undefined = the kind's default (on for quotes, estimates, delivery notes). */
   signature?: boolean;
+  /**
+   * Print each line's unit ("3 days") under its price. Off unless ticked
+   * (James, 2026-11-11: "by default have the unit label empty on the
+   * documents unless the user specifies it to be shown"); the lines keep
+   * their units either way.
+   */
+  showUnits?: boolean;
+  /** Print each line's country of origin under its description. Off unless ticked. */
+  showOrigin?: boolean;
   /** The document this one was made from ("Convert to invoice"). */
   sourceId?: string;
   /**
@@ -302,6 +324,7 @@ export type VersionData = Omit<Pick<InvoiceDoc, VersionedField>, 'lines'> & { li
 export const VERSIONED_FIELDS = [
   'issuer', 'number', 'date', 'validUntil', 'dueDate', 'subject', 'clientId', 'client',
   'lines', 'discount', 'paymentTerms', 'notes', 'taxMode', 'currency', 'taxNote', 'language', 'numberStyle', 'signature',
+  'showUnits', 'showOrigin',
 ] as const satisfies readonly (keyof InvoiceDoc)[];
 export type VersionedField = (typeof VERSIONED_FIELDS)[number];
 

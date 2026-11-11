@@ -97,6 +97,13 @@ export default function LineFields({
           </>
         )}
       </div>
+      {/* Only while the document prints origins, so it doesn't crowd every line. */}
+      {doc.showOrigin && (
+        <label className="mt-2 block min-w-0 sm:max-w-xs">
+          <span className={labelCls}>Country of origin</span>
+          <input className={inputCls} value={line.origin ?? ''} placeholder="e.g. France" aria-label="Country of origin" onChange={(e) => onSet({ origin: e.target.value || undefined })} />
+        </label>
+      )}
     </>
   );
 }

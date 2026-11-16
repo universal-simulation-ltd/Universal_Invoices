@@ -184,7 +184,10 @@ export default function PdfPreview({
 
   // The highlighted part in view: scrolled inside the pane, never the page.
   const marks = highlight ? boxes.filter((b) => highlight.includes(b.section)) : [];
-  const first = marks[0];
+  // The topmost of them: From's sender block, not its legal footer, which is
+  // laid out first (James, 2026-11-16: "when hovering on 'from' … keep the
+  // document previewer at the top, no need to scroll down").
+  const first = marks.reduce<SectionBox | undefined>((a, b) => (!a || b.page < a.page || (b.page === a.page && b.top < a.top) ? b : a), undefined);
   const pointedAt = hovered && !drag ? boxes.filter((b) => hovered.includes(b.section) && !marks.includes(b) && b !== openPart) : [];
   // The part under the pointer on page `i`, in points from the page's top left.
   const boxAt = (i: number, e: React.MouseEvent<HTMLDivElement>): SectionBox | null => {

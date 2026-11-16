@@ -98,6 +98,11 @@ export default function PdfPreview({
   // "do the rest"). The row or part it edits is scrolled up above it.
   const sheet = useMedia('(max-width: 639px)');
   const mark = useRef<HTMLDivElement>(null);
+  // While an editor is open on the page, the pane stays where it is: nothing
+  // pointed at in the form or flashed after a save scrolls it away (James,
+  // 2026-11-16: "don't autoscroll the previewer if an edit dialog is open").
+  const editing = useRef(false);
+  editing.current = lineEdit?.open != null || partEdit?.open != null;
   // An editor just opened on a row or a part: on view, inside the pane.
   useEffect(() => {
     if (lineEdit?.open == null && partEdit?.open == null) return;
@@ -302,7 +307,7 @@ export default function PdfPreview({
       : null;
   useEffect(() => {
     const el = scroller.current;
-    if (!el || !first || !width) return;
+    if (!el || !first || !width || editing.current) return;
     const pageH = (width * BUSINESS_PAGE.height) / BUSINESS_PAGE.width;
     const gap = 12;
     const top = first.page * (pageH + gap) + (first.top / BUSINESS_PAGE.height) * pageH;
@@ -319,7 +324,7 @@ export default function PdfPreview({
     const gap = 12;
     const y = top.page * (pageH + gap) + (top.top / BUSINESS_PAGE.height) * pageH;
     const h = (top.height / BUSINESS_PAGE.height) * pageH;
-    if (y < el.scrollTop || y + h > el.scrollTop + el.clientHeight) el.scrollTo({ top: Math.max(0, y - el.clientHeight / 3), behavior: 'smooth' });
+    if (!editing.current && (y < el.scrollTop || y + h > el.scrollTop + el.clientHeight)) el.scrollTo({ top: Math.max(0, y - el.clientHeight / 3), behavior: 'smooth' });
     const fade = setTimeout(() => setFlash((f) => (f && f.at === flash.at ? { ...f, fading: true } : f)), 1400);
     const gone = setTimeout(() => setFlash((f) => (f && f.at === flash.at ? null : f)), 2200);
     return () => {

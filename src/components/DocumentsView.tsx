@@ -92,17 +92,18 @@ function JourneyGroup({ docs, sel, open, folded, onToggle }: { docs: InvoiceDoc[
           className="flex min-w-0 flex-1 items-baseline justify-between gap-3 px-4 pb-1 pt-3 text-left"
         >
           <span className="min-w-0">
+            {/* The chevron by the name, so a project reads as a group at a glance (James, 2026-11-16). */}
             <span className="flex items-center gap-2">
+              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden className={`shrink-0 text-slate-500 transition-transform dark:text-slate-400 ${folded ? '-rotate-90' : ''}`}>
+                <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
               <span className="truncate font-medium text-slate-900 dark:text-slate-100">{newest.client.name || 'No client yet'}</span>
               {newest.example && <ExampleChip />}
             </span>
-            {newest.subject && <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{newest.subject}</span>}
+            {newest.subject && <span className="block truncate pl-5 text-xs text-slate-500 dark:text-slate-400">{newest.subject}</span>}
           </span>
-          <span className="flex shrink-0 items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200">
+          <span className="shrink-0 text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200">
             {folded ? `Project · show all ${docs.length}` : `Project · ${docs.length} documents`}
-            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden className={`transition-transform ${folded ? '-rotate-90' : ''}`}>
-              <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
           </span>
         </button>
       </div>

@@ -5,7 +5,10 @@
 // A journey is the documents linked by "Make… from this" (`sourceId`), walked
 // from the first. Its steps are the kinds in KIND_ORDER; a step is made here
 // (a document of that kind is in the journey) or marked on the first
-// document (`journey`): uploaded, done elsewhere, or not needed. Pure.
+// document (`journey`): uploaded or ticked done. A step left blank before a
+// later one is passed by — greyed, not marked (James, 2026-11-16: "no need
+// for 'not needed' as you just leave it blank"). Old "not needed" marks read
+// the same way. Pure.
 
 import { KIND_ORDER, type BusinessDocKind, type InvoiceDoc, type JourneyMark } from './types';
 
@@ -65,7 +68,28 @@ export function nextStep(steps: Step[], open: BusinessDocKind): BusinessDocKind 
   return steps.find((s, i) => i > at && s.state === 'todo')?.kind ?? open;
 }
 
-/** "Make it here": from the latest document BEFORE the step, else the open one. */
+/**
+ * A step with nothing in it while a later step has something: shown greyed
+ * until it is made, ticked or uploaded. An old "not needed" mark counts as
+ * nothing in it.
+ */
+export function passedBy(steps: Step[], i: number): boolean {
+  const empty = (s: Step) => s.state === 'todo' || s.state === 'skipped';
+  return empty(steps[i]) && steps.slice(i + 1).some((s) => !empty(s));
+}
+
+/** What "Copy details from…" copies into `doc`: the latest document of a step before it, else the one it was made from. */
+export function copySource(steps: Step[], doc: InvoiceDoc, documents: InvoiceDoc[]): InvoiceDoc | undefined {
+  const at = KIND_ORDER.indexOf(doc.kind);
+  for (let i = at - 1; i >= 0; i--) {
+    const d = steps[i].docs.filter((x) => x.id !== doc.id);
+    if (d.length) return d[d.length - 1];
+  }
+  const from = doc.sourceId ? documents.find((d) => d.id === doc.sourceId) : undefined;
+  return from && from.id !== doc.id ? from : undefined;
+}
+
+/** A step opened from the row: from the latest document BEFORE the step, else the open one. */
 export function sourceFor(steps: Step[], kind: BusinessDocKind, open: InvoiceDoc): InvoiceDoc {
   const at = KIND_ORDER.indexOf(kind);
   for (let i = at - 1; i >= 0; i--) {

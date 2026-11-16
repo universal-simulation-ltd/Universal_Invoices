@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { move, type Target } from '../lib/arrange';
 import { makeBackup, mergeDataset, parseBackup } from '../lib/backup';
-import { companyForImport, companyFromRead, convertDocument, duplicateDocument, duplicateJourney, freshDocument, importedDocument, newDocument, uid, withCataloguePictures } from '../lib/convert';
+import { companyForImport, companyFromRead, convertDocument, copyDetails, duplicateDocument, duplicateJourney, freshDocument, importedDocument, newDocument, uid, withCataloguePictures } from '../lib/convert';
 import { journeyOf, relinkAfterDelete } from '../lib/journey';
 import { changedBy, upgrade } from '../lib/legacy';
 import { shareHooks } from '../lib/shareHooks';
@@ -101,6 +101,8 @@ interface AppState {
   updateDocument: (doc: InvoiceDoc) => void;
   /** The next step of a journey: based on `id` (its lines, terms, client), or — `fresh` — only its client. */
   convert: (id: string, kind: BusinessDocKind, fresh?: boolean) => Promise<void>;
+  /** `sourceId`'s details copied into document `id`, keeping its number and dates. */
+  copyDetailsFrom: (id: string, sourceId: string) => void;
   /**
    * "Import PDF": what readPdf found, as a new document from the company it
    * names (or the active one; or, with none yet, a company made from it).
@@ -451,6 +453,11 @@ export const useAppStore = create<AppState>((set, get) => {
       if (!source || !company) return;
       const { doc, company: next } = (fresh ? freshDocument : convertDocument)(source, kind, company, todayIso());
       await added(doc, next);
+    },
+    copyDetailsFrom: (id, sourceId) => {
+      const target = get().documents.find((d) => d.id === id);
+      const source = get().documents.find((d) => d.id === sourceId);
+      if (target && source) get().updateDocument(copyDetails(target, source));
     },
     importRead: async (read, file, fallbackKind, activeId) => {
       const mine = ownCompanies(get().companies);

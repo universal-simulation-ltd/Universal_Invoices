@@ -20,7 +20,27 @@ const CURRENCIES: { code: InvoiceDoc['currency']; name: string }[] = [
 /** `copy`: a new document in the new currency, this one left as it is. `here`: this document changes. */
 export type ConvertWhere = 'copy' | 'here';
 
-export default function CurrencyConvert({ doc, onConvert }: { doc: InvoiceDoc; onConvert: (r: Converted, where: ConvertWhere) => void }) {
+/** One of the company's bank accounts, offered for the converted document. */
+export interface BankChoice {
+  id: string;
+  label: string;
+  lines: string[];
+}
+
+const SYMBOL: Record<InvoiceDoc['currency'], string> = { EUR: '€', GBP: '£', USD: '$' };
+const sameBank = (a: string[], b: string[]) => a.map((x) => x.trim()).filter(Boolean).join('\n') === b.map((x) => x.trim()).filter(Boolean).join('\n');
+
+export default function CurrencyConvert({
+  doc,
+  banks = [],
+  onConvert,
+}: {
+  doc: InvoiceDoc;
+  /** The company's accounts: converting asks whether to change the bank details too (James, 2026-11-16). */
+  banks?: BankChoice[];
+  /** `bank`: the bank details to put on the converted document, when they change. */
+  onConvert: (r: Converted, where: ConvertWhere, bank?: string[]) => void;
+}) {
   const panel = useId();
   const [open, setOpen] = useState(false);
   const others = CURRENCIES.filter((c) => c.code !== doc.currency);
@@ -34,6 +54,12 @@ export default function CurrencyConvert({ doc, onConvert }: { doc: InvoiceDoc; o
   const [where, setWhere] = useState<ConvertWhere>('copy');
 
   const target = others.some((c) => c.code === to) ? to : others[0].code;
+  // The other accounts; the one that names the new currency is picked first.
+  const otherBanks = banks.filter((b) => !sameBank(b.lines, doc.issuer.bank));
+  const named = otherBanks.find((b) => [b.label, ...b.lines].some((t) => t.toUpperCase().includes(target) || t.includes(SYMBOL[target])));
+  const [bankPick, setBankPick] = useState<string | null>(null);
+  const bankId = bankPick ?? named?.id ?? 'keep';
+  const bank = otherBanks.find((b) => b.id === bankId);
   const before = computeTotals(doc).gross;
   const money = (minor: number, currency: InvoiceDoc['currency']) => formatMoney(minor, currency, doc.numberStyle, true);
   const result =
@@ -125,6 +151,19 @@ export default function CurrencyConvert({ doc, onConvert }: { doc: InvoiceDoc; o
               </label>
             </div>
           </fieldset>
+          {otherBanks.length > 0 && (
+            <label className="block min-w-0">
+              <span className={labelCls}>Change the bank details too?</span>
+              <select className={selectCls} value={bank ? bank.id : 'keep'} onChange={(e) => setBankPick(e.target.value)}>
+                <option value="keep">No — keep {doc.issuer.bank[0] ? `“${doc.issuer.bank[0]}”` : 'them as they are'}</option>
+                {otherBanks.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    Yes — {b.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -132,8 +171,9 @@ export default function CurrencyConvert({ doc, onConvert }: { doc: InvoiceDoc; o
               disabled={!result}
               onClick={() => {
                 if (!result) return;
-                onConvert(result, where);
+                onConvert(result, where, bank?.lines);
                 setOpen(false);
+                setBankPick(null);
                 setRate(undefined);
                 setTotal(undefined);
               }}

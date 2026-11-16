@@ -175,28 +175,37 @@ export function convertDocument(
   date: string,
 ): { doc: InvoiceDoc; company: Company } {
   const fresh = newDocument(kind, company, date);
-  return {
-    company: fresh.company,
-    doc: {
-      ...fresh.doc,
-      issuer: source.issuer,
-      clientId: source.clientId,
-      client: { ...source.client, address: [...source.client.address], ...(source.client.contact ? { contact: { ...source.client.contact } } : {}) },
-      subject: source.subject,
-      language: source.language,
-      numberStyle: source.numberStyle,
-      currency: source.currency,
-      taxMode: source.taxMode,
-      taxNote: source.taxNote,
-      lines: source.lines.map((l) => ({ ...l, id: uid() })),
-      ...(source.discount ? { discount: { ...source.discount } } : {}),
-      notes: source.notes,
-      paymentTerms: source.paymentTerms,
-      showUnits: source.showUnits,
-      showOrigin: source.showOrigin,
-      sourceId: source.id,
-    },
+  return { company: fresh.company, doc: { ...copyDetails(fresh.doc, source), sourceId: source.id } };
+}
+
+/**
+ * `target` with `source`'s details: who it is from and to, the lines, prices,
+ * discount, notes and terms. Its own number, dates, kind and place in the
+ * project stay — "Copy details from…" on a step opened empty (James,
+ * 2026-11-16: "it should automatically show an empty document with a 'copy
+ * details from [last document]'").
+ */
+export function copyDetails(target: InvoiceDoc, source: InvoiceDoc): InvoiceDoc {
+  const out: InvoiceDoc = {
+    ...target,
+    issuer: source.issuer,
+    clientId: source.clientId,
+    client: { ...source.client, address: [...source.client.address], ...(source.client.contact ? { contact: { ...source.client.contact } } : {}) },
+    subject: source.subject,
+    language: source.language,
+    numberStyle: source.numberStyle,
+    currency: source.currency,
+    taxMode: source.taxMode,
+    taxNote: source.taxNote,
+    lines: source.lines.map((l) => ({ ...l, id: uid() })),
+    notes: source.notes,
+    paymentTerms: source.paymentTerms,
+    showUnits: source.showUnits,
+    showOrigin: source.showOrigin,
   };
+  if (source.discount) out.discount = { ...source.discount };
+  else delete out.discount;
+  return out;
 }
 
 /**

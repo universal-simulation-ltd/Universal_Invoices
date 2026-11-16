@@ -15,7 +15,7 @@ import { fileSize, openAttachment } from './attachments';
 import CataloguePicker from './CatalogueAdd';
 import CurrencyConvert from './CurrencyConvert';
 import CustomsCopy from './CustomsCopy';
-import DocumentJourney from './DocumentJourney';
+import DocumentJourney, { UploadStep } from './DocumentJourney';
 import DocumentVersions from './DocumentVersions';
 import LineFields from './LineFields';
 import LinesSummary, { TotalsFields } from './LinesSummary';
@@ -93,6 +93,8 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
   const company = companies.find((c) => c.id === doc.companyId);
   const [pane, setPane] = useState<'edit' | 'preview'>('edit');
   const [customs, setCustoms] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
+  const advancedId = useId();
 
   // The working copy, and the sections with edits not saved yet.
   const [draft, setDraft] = useState(doc);
@@ -403,6 +405,10 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
   // Which of the company's accounts the document's bank lines are, if any.
   const sameLines = (a: string[], b: string[]) => a.map((x) => x.trim()).filter(Boolean).join('\n') === b.map((x) => x.trim()).filter(Boolean).join('\n');
   const bankChoice = !company ? 'edited' : sameLines(d.issuer.bank, company.bank) ? 'main' : (company.moreBanks?.find((b) => sameLines(b.lines, d.issuer.bank))?.id ?? 'edited');
+  // The company's accounts, offered when the prices are converted to another currency.
+  const banks = company
+    ? [{ id: 'main', label: `Main account${company.bank[0] ? ` — ${company.bank[0]}` : ''}`, lines: company.bank }, ...(company.moreBanks ?? []).map((b) => ({ id: b.id, label: b.label || b.lines[0] || 'Unnamed account', lines: b.lines }))].filter((b) => b.lines.some((l) => l.trim()))
+    : [];
   const section = (id: SectionId) => ({
     id,
     dirty: dirty.has(id),
@@ -598,28 +604,13 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
               <option value="standard">VAT on each line</option>
             </select>
           </Field>
-          <Field label="Currency" hint="Changes the symbol only. To change the amounts too, convert the prices below.">
+          <Field label="Currency" hint="Changes the symbol only. To change the amounts too, convert the prices in Advanced options.">
             <select className={selectCls} value={d.currency} onChange={(e) => edit('terms', { currency: e.target.value as InvoiceDoc['currency'] })}>
               <option value="EUR">Euro (€)</option>
               <option value="GBP">Pound sterling (£)</option>
               <option value="USD">US dollar ($)</option>
             </select>
           </Field>
-          <CurrencyConvert
-            doc={d}
-            onConvert={(r, where) => {
-              if (where === 'copy') {
-                // What is being edited here is saved first, so the copy is of this document as it reads now.
-                save(dirty);
-                // In the same project as this one (James, 2026-11-11), so it groups with it.
-                void duplicate(doc.id, { currency: r.currency, lines: r.lines, discount: r.discount }, true);
-                return;
-              }
-              snapshot('convert');
-              edit('terms', { currency: r.currency });
-              edit('lines', { lines: r.lines, discount: r.discount });
-            }}
-          />
           {d.taxMode !== 'standard' && (
             <Field label="Exemption wording" className="sm:col-span-2" hint="Printed under the totals.">
               <input className={inputCls} value={d.taxNote} onChange={(e) => edit('terms', { taxNote: e.target.value })} />
@@ -696,19 +687,6 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
               >
                 Duplicate
               </button>
-              {doc.kind !== 'delivery-note' && doc.lines.length > 0 && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={menuItem}
-                  onClick={() => {
-                    close();
-                    setCustoms(true);
-                  }}
-                >
-                  Customs copy…
-                </button>
-              )}
               <button
                 type="button"
                 role="menuitem"
@@ -727,19 +705,6 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
           )}
         </MoreMenu>
       </div>
-
-      {customs && (
-        <CustomsCopy
-          doc={d}
-          onClose={() => setCustoms(false)}
-          onMake={(r) => {
-            // What is being edited is saved first, so the copy is of this document as it reads now.
-            save(dirty);
-            setCustoms(false);
-            void duplicate(doc.id, { lines: r.lines, discount: r.discount }, true);
-          }}
-        />
-      )}
 
       {signing && <SignDialog doc={doc} pdf={signing} onSigned={(x) => void onSigned(x)} onClose={() => setSigning(null)} />}
 
@@ -910,6 +875,65 @@ export default function DocumentEditor({ doc }: { doc: InvoiceDoc }) {
           <Section {...section('terms')} title="Notes and more" summary={d.notes.split('\n')[0]}>
             {termsBody}
           </Section>
+
+          {/* Advanced options (James, 2026-11-16: "have an advanced options
+              beneath notes and more and move the currency converter, the
+              upload document and simplified for customs copy options there"). */}
+          <section className={card}>
+            <button
+              type="button"
+              aria-expanded={advanced}
+              aria-controls={advancedId}
+              onClick={() => setAdvanced((a) => !a)}
+              className="-ml-1 flex min-w-0 items-center gap-2 rounded-md px-1 py-0.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden className={`shrink-0 text-slate-400 transition-transform ${advanced ? '' : '-rotate-90'}`}>
+                <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <h2 className={sectionTitle}>Advanced options</h2>
+            </button>
+            <div id={advancedId} hidden={!advanced} className="mt-3 space-y-5">
+              {d.kind !== 'delivery-note' && (
+                <CurrencyConvert
+                  doc={d}
+                  banks={banks}
+                  onConvert={(r, where, bank) => {
+                    if (where === 'copy') {
+                      // What is being edited here is saved first, so the copy is of this document as it reads now.
+                      save(dirty);
+                      // In the same project as this one (James, 2026-11-11), so it groups with it.
+                      void duplicate(doc.id, { currency: r.currency, lines: r.lines, discount: r.discount, ...(bank ? { issuer: { ...d.issuer, bank: [...bank] } } : {}) }, true);
+                      return;
+                    }
+                    snapshot('convert');
+                    edit('terms', { currency: r.currency });
+                    edit('lines', { lines: r.lines, discount: r.discount });
+                    if (bank) edit('payment', { issuer: { ...d.issuer, bank: [...bank] } });
+                  }}
+                />
+              )}
+              {d.kind !== 'delivery-note' && d.lines.length > 0 && (
+                <div className="space-y-2">
+                  <button type="button" className={`${btnGhost} text-sm`} aria-expanded={customs} onClick={() => setCustoms((c) => !c)}>
+                    Simplified copy for customs…
+                  </button>
+                  {customs && (
+                    <CustomsCopy
+                      doc={d}
+                      onClose={() => setCustoms(false)}
+                      onMake={(r) => {
+                        // What is being edited is saved first, so the copy is of this document as it reads now.
+                        save(dirty);
+                        setCustoms(false);
+                        void duplicate(doc.id, { lines: r.lines, discount: r.discount }, true);
+                      }}
+                    />
+                  )}
+                </div>
+              )}
+              <UploadStep doc={doc} />
+            </div>
+          </section>
         </div>
 
         <div className={`${pane === 'preview' ? '' : 'hidden lg:block'}`}>

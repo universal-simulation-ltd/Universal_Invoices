@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { computeTotals } from '@unisim/doc';
-import { clientSnapshot, companyForImport, convertDocument, importedDocument, newDocument, withCataloguePictures } from './convert';
+import { clientSnapshot, companyForImport, convertDocument, copyDetails, importedDocument, newDocument, withCataloguePictures } from './convert';
 import { exampleData } from './example';
-import { groupByJourney, journeyOf, nextStep, relinkAfterDelete, sourceFor, startOf, stepsOf } from './journey';
+import { copySource, groupByJourney, journeyOf, nextStep, passedBy, relinkAfterDelete, sourceFor, startOf, stepsOf } from './journey';
 import { changedBy, upgrade } from './legacy';
 import { counterAfter } from './numbering';
 import { renderPdf } from './pdf';
@@ -130,6 +130,18 @@ describe('journey', () => {
     const steps = stepsOf(journeyOf(lone, [lone]));
     expect(steps.map((s) => s.state)).toEqual(['todo', 'made', 'skipped', 'todo', 'done']);
     expect(startOf(steps)).toBe(1);
+  });
+
+  it('greys a step left blank before a later one, and copies from the last step before', () => {
+    const steps = stepsOf(journeyOf(inv, docs));
+    expect(steps.map((_, i) => passedBy(steps, i))).toEqual([false, false, true, false, false]);
+    const blank = { ...newDocument('proforma', company, '2026-10-31').doc, sourceId: q.id, createdAt: 4 };
+    const all = [...docs, blank];
+    expect(copySource(stepsOf(journeyOf(blank, all)), blank, all)?.id).toBe(q.id);
+    const copied = copyDetails(blank, q);
+    expect(copied).toMatchObject({ id: blank.id, number: blank.number, kind: 'proforma', sourceId: q.id, notes: q.notes });
+    expect(copied.lines.map((l) => l.description)).toEqual(q.lines.map((l) => l.description));
+    expect(copied.lines[0].id).not.toBe(q.lines[0].id);
   });
 
   it('groups a list by journey, where its newest row is', () => {

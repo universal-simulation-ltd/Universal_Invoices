@@ -2,6 +2,8 @@ import { useId, useMemo, useState } from 'react';
 import { useDefaultView, useScrollHint } from '@unisim/sdk';
 import { computeTotals, formatDate, formatMoney, wantsDecimals } from '@unisim/doc';
 import { groupByJourney } from '../lib/journey';
+import { inRange, isSet, rangeLabel, type DateRange } from '../lib/dateRange';
+import { DateFilterButton, DateFilterChip } from './DateFilter';
 import { DOCUMENTS_VIEWS, DOCUMENTS_VIEW_VALUES, type DocumentsView as DocumentsViewKind } from '../lib/tabs';
 import { useShownKinds } from './shownKinds';
 import { KIND_NAMES, kindPlural, type InvoiceDoc } from '../lib/types';
@@ -123,6 +125,7 @@ export default function DocumentsView() {
   const { hideInvoices } = useShownKinds();
   const [kind, setKind] = useState<DocumentsViewKind>(shows.defaultView);
   const [query, setQuery] = useState('');
+  const [dates, setDates] = useState<DateRange>({});
   // Projects open by hand, by their first document. The rest are folded to their newest.
   const [unfolded, setUnfolded] = useState<Set<string>>(new Set());
   const toggleProject = (id: string) =>
@@ -161,8 +164,11 @@ export default function DocumentsView() {
     return scoped
       .filter((d) => kind === 'all' || d.kind === kind)
       .filter((d) => !q || [d.number, d.client.name, d.subject].some((s) => s.toLowerCase().includes(q)))
+      .filter((d) => inRange(d.date, dates))
       .sort((a, b) => (b.date === a.date ? b.createdAt - a.createdAt : b.date.localeCompare(a.date)));
-  }, [scoped, kind, query]);
+  }, [scoped, kind, query, dates]);
+  // A search or a date range shows every match, so its projects are open.
+  const filtering = !!query.trim() || isSet(dates);
   const sel = useSelection(rows.map((d) => d.id));
   // All lists by journey; one kind is a plain list (a journey has one of each, mostly).
   const groups = useMemo(() => (kind === 'all' ? groupByJourney(rows, documents) : rows.map((d) => [d])), [kind, rows, documents]);
@@ -253,7 +259,13 @@ export default function DocumentsView() {
       <div className="min-w-0 space-y-4">
         <div className="flex flex-wrap items-center gap-2">
           {newButton}
-          <input className={`${inputCls} order-last w-full sm:order-none sm:w-auto sm:max-w-xs sm:flex-1`} placeholder="Search number, client, subject" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search" />
+          <div className="relative order-last w-full sm:order-none sm:w-auto sm:max-w-xs sm:flex-1">
+            <input className={`${inputCls} pr-10`} placeholder="Search number, client, subject" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search" />
+            <DateFilterButton range={dates} onChange={setDates} />
+          </div>
+          <span className="order-last sm:order-none">
+            <DateFilterChip range={dates} onClear={() => setDates({})} />
+          </span>
           {from}
           <div className="ml-auto">
             <SelectionBar
@@ -273,16 +285,17 @@ export default function DocumentsView() {
           <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             {groups.map((g) =>
               g.length > 1 ? (
-                // A search shows every match, so its projects are open.
-                <JourneyGroup key={g[0].id} docs={g} sel={sel} open={open} folded={!query.trim() && !unfolded.has(g[0].id)} onToggle={() => toggleProject(g[0].id)} />
+                <JourneyGroup key={g[0].id} docs={g} sel={sel} open={open} folded={!filtering && !unfolded.has(g[0].id)} onToggle={() => toggleProject(g[0].id)} />
               ) : (
                 <DocRow key={g[0].id} d={g[0]} sel={sel} open={open} />
               ),
             )}
             {rows.length === 0 && (
               <li className="px-4 py-6 text-center text-sm text-slate-500">
-                {query.trim()
-                  ? 'Nothing matches.'
+                {filtering
+                  ? isSet(dates) && !query.trim()
+                    ? `Nothing dated ${rangeLabel(dates)}.`.replace(/dated (This|Last|From|Until) /, (m) => m.toLowerCase())
+                    : 'Nothing matches.'
                   : `No ${kind === 'all' ? 'documents' : kindPlural(kind).toLowerCase()}${mine.length > 1 && fromCompany && !showOthers ? ` from ${fromCompany.name}` : ''} yet.`}
               </li>
             )}

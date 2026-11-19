@@ -140,8 +140,9 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
         </p>
       )}
       {form(d, (patch) => setDraft({ ...d, ...patch }))}
-      {/* Pinned to the foot of the screen while a long form (a company) scrolls past. */}
-      <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-4 flex flex-wrap gap-2 rounded-b-2xl border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-5 sm:-mb-5 sm:px-5 dark:border-slate-800 dark:bg-slate-900/95">
+      {/* Pinned to the foot of the screen while a long form (a company) scrolls
+          past — above the phone's docked section tabs (--u-dock-space). */}
+      <div className="sticky bottom-[var(--u-dock-space,0px)] z-10 -mx-4 -mb-4 mt-4 flex flex-wrap gap-2 rounded-b-2xl border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-5 sm:-mb-5 sm:px-5 dark:border-slate-800 dark:bg-slate-900/95">
         <button
           type="button"
           className={btnPrimary}

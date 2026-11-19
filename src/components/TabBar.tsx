@@ -4,6 +4,8 @@ import { moveTab, tabLabel } from '../lib/tabs';
 import type { Tab } from '../stores/appStore';
 
 const HOLD_MS = 450;
+/** Shorter labels for the phone dock, where the four tabs share the width. */
+const PHONE_LABEL: Partial<Record<Tab, string>> = { companies: 'Companies' };
 /** A finger that moves this far before the hold is scrolling the bar, not picking a tab up. */
 const SLOP = 8;
 
@@ -133,7 +135,10 @@ export default function TabBar({
       onPointerMove={onMove}
       onPointerUp={onUp}
       onPointerCancel={end}
-      className="u-tabs mb-5"
+      // u-tabs--dock (SDK 0.222): on a phone the tray floats at the foot of
+      // the screen (owner rule 2026-11-19, BRANDING.md → "On a phone,
+      // navigation sits at the bottom"); from 768px up it stays here.
+      className="u-tabs u-tabs--dock mb-5"
       aria-label="Sections"
     >
       {tabs.map((t) => (
@@ -156,7 +161,15 @@ export default function TabBar({
           // selects, and buttonProps' data-default-view draws the opens-here dot.
           className={`u-tab ${drag?.tab === t ? 'cursor-grabbing opacity-50' : ''}`}
         >
-          {tabLabel(t)}
+          {PHONE_LABEL[t] ? (
+            <>
+              {/* Four abreast in the phone dock, "Your companies" does not fit. */}
+              <span className="md:hidden">{PHONE_LABEL[t]}</span>
+              <span className="max-md:hidden">{tabLabel(t)}</span>
+            </>
+          ) : (
+            tabLabel(t)
+          )}
         </button>
       ))}
     </nav>

@@ -78,7 +78,11 @@ export default function App() {
   }, [init, loading, account]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-100 dark:bg-slate-950">
+    // pb-[var(--u-dock-space)]: on a phone the section tabs dock at the foot of
+    // the screen (SDK 0.222). The SDK pads <body> too, but html/body are
+    // height:100% here, so the page overflows body and that padding never
+    // reaches the end of the scroll; this box's does. 0 from 768px up.
+    <div className="flex min-h-screen flex-col bg-slate-100 pb-[var(--u-dock-space,0px)] dark:bg-slate-950">
       <UniversalAppsNavBar
         contentClassName={CONTAINER}
         product="invoices"

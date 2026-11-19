@@ -22,6 +22,19 @@ body {
   overflow-wrap: break-word;
 }
 
+/* The phone dock (SDK 0.222) shares 320px between four tabs; on the narrowest
+   phones "Companies" and "Documents" need a little less padding and type, and
+   the segments size to their labels (Clients is short) so the opens-here dot
+   after one of them still fits. */
+@media (max-width: 359.98px) {
+  .u-tabs.u-tabs--dock > .u-tab {
+    flex: 1 1 auto;
+    gap: 4px;
+    padding-inline: 3px;
+    font-size: 12px;
+  }
+}
+
 /* The page gutter, which is also the `viewport-fit=cover` safe area (the
    PalsPayIn pattern): px-4 / sm:px-6 / lg:px-8 widened by the insets. */
 .gutter {

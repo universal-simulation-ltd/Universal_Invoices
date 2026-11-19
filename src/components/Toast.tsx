@@ -16,7 +16,8 @@ export default function Toast({ message, onDone }: { message: string | null; onD
   }, [message, onDone]);
   if (!message) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center px-4 pb-[env(safe-area-inset-bottom)]">
+    // Lifted above the phone's docked section tabs (--u-dock-space, SDK 0.222; 0 elsewhere).
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(1rem+var(--u-dock-space,0px))] z-50 flex justify-center px-4 pb-[env(safe-area-inset-bottom)]">
       <div
         role="status"
         aria-live="polite"

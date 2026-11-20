@@ -10,7 +10,9 @@ import DocumentsView from './components/DocumentsView';
 import TabBar from './components/TabBar';
 import TabOrderPreference from './components/TabOrderPreference';
 import HideInvoicesPreference from './components/HideInvoicesPreference';
-import { FRENCH_NOTE_SEEN, HIDE_INVOICES } from './components/shownKinds';
+import { FRENCH_NOTE_SEEN } from './components/shownKinds';
+import { LegacyPrefsMigration } from './components/LegacyPrefsMigration';
+import { useInvoicesSettings } from './stores/invoicesSettings';
 import { DOCUMENTS_VIEWS, normaliseOrder, TAB_VALUES, TABS } from './lib/tabs';
 import { OrgSync } from './components/OrgSync';
 import CloudBackup from './components/CloudBackup';
@@ -44,15 +46,15 @@ export default function App() {
   // in Tune this app. Reset to defaults comes back here.
   const homeTab = useDefaultView<Tab>('home-tab', 'companies', { views: TAB_VALUES });
   const openDoc = openId ? documents.find((d) => d.id === openId) : undefined;
-  // Here, in a component that is always mounted, so a change made in Tune
-  // this app still reaches the account after the dialog shuts.
-  const { pref, setPref } = useUserPrefs();
+  // The French note's "Got it" lives in useUserPrefs; Reset to defaults clears it.
+  const { setPref } = useUserPrefs();
   // The RESOLVED theme ('system' already turned into light or dark): the bar
   // and its dropdowns are inline-styled, so without it they stay light in a
   // dark app while AppMenu's rows go dark.
   const theme = useThemeStore((s) => s.effective);
-  const tabOrder = normaliseOrder(pref<unknown>('tabOrder', null));
-  const setTabOrder = (order: Tab[]) => setPref('tabOrder', order);
+  // The tab order is a synced Tune setting (stores/invoicesSettings.ts).
+  const tabOrder = normaliseOrder(useInvoicesSettings((s) => s.tabOrder));
+  const setTabOrder = (order: Tab[]) => useInvoicesSettings.set({ tabOrder: order });
 
   // Each Universal ID has its own rows in this browser, and signed out has
   // its own (lib/store.ts): signing in, out or across loads that account's.
@@ -100,10 +102,9 @@ export default function App() {
             <HideInvoicesPreference />
           </>
         }
-        // The SDK resets its own (Opens on, Documents shows, theme, language); the tab order is ours.
+        // The SDK resets its own (Opens on, Documents shows, theme, language)
+        // and every synced store (tab order, Hide invoices); the note is ours.
         onResetDefaults={() => {
-          setPref('tabOrder', null);
-          setPref(HIDE_INVOICES, null);
           setPref(FRENCH_NOTE_SEEN, null);
         }}
         suiteSwitcherIconSrc={`${import.meta.env.BASE_URL}unisim-icon.png`}
@@ -115,6 +116,8 @@ export default function App() {
       />
       <div className={`${CONTAINER} pt-4`}>
         <UpdateNotice />
+        {/* Once per account: the old useUserPrefs row's settings move to the synced one. */}
+        <LegacyPrefsMigration />
         {/* Keeps the Universal ID company in Your companies, live. */}
         <OrgSync />
         {/* Signed in: a copy on the Universal ID, kept up to date. */}

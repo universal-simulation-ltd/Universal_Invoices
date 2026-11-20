@@ -129,7 +129,9 @@ back up from Advanced.
 
 Signing in with a Universal ID is optional. It brings your Tuning and lets you
 name the app ("Bradley's Invoices", the product's name, or your own) in Tune
-this app; that choice and your Call me name are kept on your Universal ID. If
+this app; that choice, the rest of Tune this app (tab order, Hide invoices,
+Opens on; the newest change wins) and your Call me name are kept on your
+Universal ID. If
 your Universal ID belongs to a company, that company appears in Your companies
 as the default "From", and its Business details from app.unisim.co.uk
 (address, VAT and registration numbers, bank details, logo, footer) are read

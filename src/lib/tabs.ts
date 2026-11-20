@@ -1,8 +1,9 @@
 // The app's tabs and the order you put them in (James, 2026-10-31: "start with
 // your companies tab"; "allow the user to click and drag navigation order" —
 // the suite's tab rule, Docs_UNI_SIM/BRANDING.md ▸ Tabs reorder: hold and
-// drag). The order is a Tune setting, saved with the SDK's useUserPrefs so it
-// follows the account; Reset to defaults puts this order back.
+// drag). The order is a Tune setting, kept in the synced Tune store
+// (stores/invoicesSettings.ts) so it follows the account; Reset to defaults
+// puts this order back.
 
 import type { Tab } from '../stores/appStore';
 import { KIND_ORDER, kindPlural, type BusinessDocKind } from './types';

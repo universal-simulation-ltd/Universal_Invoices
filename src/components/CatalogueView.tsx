@@ -402,7 +402,9 @@ export default function CatalogueView() {
               </span>
             )}
             <div className="min-w-0 flex-1">
-              <div className="font-medium text-slate-900 dark:text-slate-100">{p.code || 'No code'}</div>
+              <div className="truncate font-medium text-slate-900 dark:text-slate-100" title={p.code || undefined}>
+                {p.code || 'No code'}
+              </div>
               <div className="truncate text-sm text-slate-500 dark:text-slate-400">{p.description.split('\n')[0]}</div>
               {/* Which companies it is for — worth saying once there is more than one, or once it is ticked. */}
               {(mine.length > 1 || companiesOf(p, companies).length > 0) && !p.example && (
@@ -410,8 +412,15 @@ export default function CatalogueView() {
                   {companiesOf(p, companies).length ? companiesOf(p, companies).map((id) => nameOf.get(id) ?? '').filter(Boolean).join(' · ') : 'All companies'}
                 </div>
               )}
+              {/* On a phone the price sits under the description, so the code
+                  and description keep the row's width instead of squeezing
+                  beside a wide price. */}
+              <div className="tabular mt-0.5 truncate text-sm sm:hidden">
+                <span className="font-semibold text-slate-900 dark:text-slate-100">{formatMoney(p.unitPrice, currency, style, true)}</span>
+                {p.unit && <span className="text-xs italic text-slate-500"> · {shownUnit(p.unit)}</span>}
+              </div>
             </div>
-            <div className="tabular text-right text-sm">
+            <div className="tabular hidden shrink-0 text-right text-sm sm:block">
               <div className="font-semibold text-slate-900 dark:text-slate-100">{formatMoney(p.unitPrice, currency, style, true)}</div>
               {p.unit && <div className="text-xs italic text-slate-500">{shownUnit(p.unit)}</div>}
             </div>

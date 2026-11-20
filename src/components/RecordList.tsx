@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { SelectCheckbox, SelectionBar, useSelection } from '@unisim/sdk';
 import type { Target } from '../lib/arrange';
 import { DragHandle, DropLine, useArrangeDrag } from './arrange';
-import { BinIcon, CheckIcon, EmptyState, ExampleChip, Key, PlusIcon, SyncedChip, btnDanger, plural, btnGhost, btnPrimary, card, confirmAction, exampleBorder, liveBorder } from './ui';
+import { BinIcon, CheckIcon, EmptyState, ExampleChip, Key, PlusIcon, SyncedChip, btnDanger, plural, btnGhost, btnPrimary, card, confirmAction, exampleBorder, liveBorder, orbitCard, plainBorder } from './ui';
 
 /**
  * The shape the Clients, Catalogue and Companies tabs share: a list, one row
@@ -232,7 +232,9 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
               onDropFiles(row, [...e.dataTransfer.files]);
             })
           }
-          className={`${card} ${row.example ? exampleBorder : ''} ${live?.(row) ? liveBorder : ''} ${dropOn === row.id ? 'ring-2 ring-orange-400' : ''} block min-w-0 flex-1 text-left hover:border-orange-300 disabled:opacity-60 dark:hover:border-orange-800`}
+          // A row you tap to open: the Orbit corner (ui.tsx → orbitCard). The
+          // tick box and the aside stay beside it, outside the button.
+          className={`${orbitCard} ${row.example ? exampleBorder : live?.(row) ? liveBorder : plainBorder} ${dropOn === row.id ? 'ring-2 ring-orange-400' : ''} min-w-0 flex-1 text-left disabled:opacity-60`}
         >
           {row.example || live?.(row) ? (
             <div className="flex items-start gap-3">
@@ -337,10 +339,13 @@ export default function RecordList<T extends { id: string; example?: boolean }>(
                       ))}
                       {node.rows.length > 0 && lineAt(node.id, null)}
                       {!node.rows.length && (
+                        // An empty folder: the Viewfinder with nothing in frame
+                        // (BRANDING.md → Boxes, D · empty), its leading corner
+                        // lighting while rows are dragged over it.
                         <div
                           data-drop="into"
                           data-id={node.id}
-                          className={`rounded-2xl border-2 border-dashed px-4 py-3 text-sm text-slate-500 dark:text-slate-400 ${into ? 'border-orange-400' : 'border-slate-200 dark:border-slate-800'}`}
+                          className={`u-box u-box--frame u-box--row px-4 py-3 text-left text-sm text-slate-500 dark:text-slate-400 ${into ? 'bg-orange-50 dark:bg-orange-950/30' : 'u-box--empty'}`}
                         >
                           {into && carrying > 1 ? `Drop ${carrying} ${plural(noun)} here.` : `Empty. Drag ${plural(noun)} here by their handle.`}
                         </div>

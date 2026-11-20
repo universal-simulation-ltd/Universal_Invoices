@@ -13,7 +13,7 @@ import CompanySwitcher from './CompanySwitcher';
 import ImportPdfButton from './ImportPdfButton';
 import NewDocumentButton from './NewDocumentButton';
 import { saveSpreadsheet } from './exportSheet';
-import { EmptyState, ExampleChip, btnGhost, exampleBorder, inputCls } from './ui';
+import { EmptyState, ExampleChip, btnGhost, exampleBorder, inputCls, plainBorder } from './ui';
 
 
 function total(doc: InvoiceDoc): string {
@@ -29,16 +29,19 @@ function total(doc: InvoiceDoc): string {
  */
 function DocRow({ d, sel, open, inJourney }: { d: InvoiceDoc; sel: ListSelection; open: (id: string) => void; inJourney?: boolean }) {
   return (
-    <li className={`flex items-center ${d.example ? `border-2 ${exampleBorder}` : ''}`}>
-      <div className={`flex items-center self-stretch ${inJourney ? 'pl-8' : 'pl-4'}`}>
+    // Each document is a row you tap to open it: the suite's Orbit corner
+    // (BRANDING.md → Boxes, A). The tick box sits beside the row, outside its
+    // button; the example keeps its dashed orange border on the box.
+    <li className="flex items-center gap-3">
+      <div className="flex items-center self-stretch pl-1">
         <SelectCheckbox checked={sel.has(d.id)} onChange={() => sel.toggle(d.id)} label={`Select ${d.number}`} />
       </div>
       <button
         type="button"
         onClick={() => open(d.id)}
-        className={`grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 text-left hover:bg-orange-50/60 dark:hover:bg-slate-800/60 ${
-          inJourney ? 'py-2 sm:grid-cols-[7rem_minmax(0,1fr)_6rem_7rem]' : 'py-3 sm:grid-cols-[8rem_minmax(0,1fr)_6rem_7rem]'
-        }`}
+        className={`u-box u-box--orbit u-box--row grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 bg-white px-4 text-left dark:bg-slate-900 ${
+          d.example ? exampleBorder : plainBorder
+        } ${inJourney ? 'py-2 sm:grid-cols-[7rem_minmax(0,1fr)_6rem_7rem]' : 'py-3 sm:grid-cols-[8rem_minmax(0,1fr)_6rem_7rem]'}`}
       >
         <span className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-400">{KIND_NAMES[d.kind]}</span>
         {/* On a phone: kind and date, then the client across, then the total. */}
@@ -76,9 +79,13 @@ function JourneyGroup({ docs, sel, open, folded, onToggle }: { docs: InvoiceDoc[
   const all = docs.every((d) => sel.has(d.id));
   const body = useId();
   return (
-    <li className="bg-slate-50/70 pb-1 dark:bg-slate-950/30">
-      <div className="flex items-center">
-        <div className="flex items-center self-stretch pl-4">
+    // A project: its heading (fold / unfold, not open), then its documents,
+    // each an Orbit row, drawn in from the left under a rule as the
+    // catalogue's folders are. Their right edges stay in line with the
+    // documents on their own, so the dates and totals still line up.
+    <li>
+      <div className="flex items-center gap-3">
+        <div className="flex items-center self-stretch pl-1">
           <SelectCheckbox
             checked={all}
             onChange={() => docs.filter((d) => sel.has(d.id) === all).forEach((d) => sel.toggle(d.id))}
@@ -90,7 +97,7 @@ function JourneyGroup({ docs, sel, open, folded, onToggle }: { docs: InvoiceDoc[
           onClick={onToggle}
           aria-expanded={!folded}
           aria-controls={body}
-          className="flex min-w-0 flex-1 items-baseline justify-between gap-3 px-4 pb-1 pt-3 text-left"
+          className="flex min-w-0 flex-1 items-baseline justify-between gap-3 px-1 pb-1 pt-2 text-left"
         >
           <span className="min-w-0">
             {/* The chevron by the name, so a project reads as a group at a glance (James, 2026-11-16). */}
@@ -108,7 +115,7 @@ function JourneyGroup({ docs, sel, open, folded, onToggle }: { docs: InvoiceDoc[
           </span>
         </button>
       </div>
-      <ul id={body}>
+      <ul id={body} className="ml-3 mt-1 space-y-2 border-l-2 border-slate-200 pl-3 sm:pl-4 dark:border-slate-800">
         {(folded ? [newest] : docs).map((d) => (
           <DocRow key={d.id} d={d} sel={sel} open={open} inJourney />
         ))}
@@ -280,8 +287,8 @@ export default function DocumentsView() {
             />
           </div>
         </div>
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+        <div>
+          <ul className="space-y-2">
             {groups.map((g) =>
               g.length > 1 ? (
                 <JourneyGroup key={g[0].id} docs={g} sel={sel} open={open} folded={!filtering && !unfolded.has(g[0].id)} onToggle={() => toggleProject(g[0].id)} />
@@ -290,7 +297,9 @@ export default function DocumentsView() {
               ),
             )}
             {rows.length === 0 && (
-              <li className="px-4 py-6 text-center text-sm text-slate-500">
+              // Nothing in this view: an empty Viewfinder (BRANDING.md →
+              // Boxes, D · empty), all four corners muted.
+              <li className="u-box u-box--frame u-box--empty bg-white text-sm text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                 {filtering
                   ? isSet(dates) && !query.trim()
                     ? `Nothing dated ${rangeLabel(dates)}.`.replace(/dated (This|Last|From|Until) /, (m) => m.toLowerCase())

@@ -526,7 +526,11 @@ export function SharedCompanyLanding({ id, onDone }: { id: string; onDone: () =>
   return box(
     <>
       <h1 className="text-base font-semibold text-slate-900 dark:text-slate-100">A company shared with you</h1>
-      <div className="flex items-center gap-4 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+      {/* The company on offer, as it will arrive: a record, so the suite's
+          Key box (BRANDING.md → Boxes, C), its tab saying what it is; mt-2
+          clears the tab from the heading. */}
+      <div className="u-box u-box--key mt-2 flex items-center gap-4 border-slate-200 bg-white px-3 pb-3 pt-5 dark:border-slate-800 dark:bg-slate-900">
+        <span className="u-box__key">Company</span>
         {c.logo ? <img src={c.logo.dataUrl} alt="" className="h-12 w-20 shrink-0 object-contain" /> : null}
         <div className="min-w-0">
           <div className="font-semibold text-slate-900 dark:text-slate-100">{c.name}</div>

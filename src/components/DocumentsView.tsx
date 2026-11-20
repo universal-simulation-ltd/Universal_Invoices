@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react';
-import { useDefaultView, useScrollHint } from '@unisim/sdk';
+import { SelectCheckbox, SelectionBar, useDefaultView, useScrollHint, useSelection, type ListSelection } from '@unisim/sdk';
 import { computeTotals, formatDate, formatMoney, wantsDecimals } from '@unisim/doc';
 import { groupByJourney } from '../lib/journey';
 import { inRange, isSet, rangeLabel, type DateRange } from '../lib/dateRange';
@@ -13,7 +13,6 @@ import CompanySwitcher from './CompanySwitcher';
 import ImportPdfButton from './ImportPdfButton';
 import NewDocumentButton from './NewDocumentButton';
 import { saveSpreadsheet } from './exportSheet';
-import { SelectCheckbox, SelectionBar, useSelection, type Selection } from './selection';
 import { EmptyState, ExampleChip, btnGhost, exampleBorder, inputCls } from './ui';
 
 
@@ -28,7 +27,7 @@ function total(doc: InvoiceDoc): string {
  * journey's header does that, so it shows its number — and its columns are
  * pulled in by the extra indent, so date and total still line up.
  */
-function DocRow({ d, sel, open, inJourney }: { d: InvoiceDoc; sel: Selection; open: (id: string) => void; inJourney?: boolean }) {
+function DocRow({ d, sel, open, inJourney }: { d: InvoiceDoc; sel: ListSelection; open: (id: string) => void; inJourney?: boolean }) {
   return (
     <li className={`flex items-center ${d.example ? `border-2 ${exampleBorder}` : ''}`}>
       <div className={`flex items-center self-stretch ${inJourney ? 'pl-8' : 'pl-4'}`}>
@@ -72,7 +71,7 @@ function DocRow({ d, sel, open, inJourney }: { d: InvoiceDoc; sel: Selection; op
  * and just show their latest document"); unfolded, all of them in project
  * order. Its newest document's subject wins — the latest word on the job.
  */
-function JourneyGroup({ docs, sel, open, folded, onToggle }: { docs: InvoiceDoc[]; sel: Selection; open: (id: string) => void; folded: boolean; onToggle: () => void }) {
+function JourneyGroup({ docs, sel, open, folded, onToggle }: { docs: InvoiceDoc[]; sel: ListSelection; open: (id: string) => void; folded: boolean; onToggle: () => void }) {
   const newest = docs.reduce((a, b) => (b.createdAt > a.createdAt ? b : a));
   const all = docs.every((d) => sel.has(d.id));
   const body = useId();

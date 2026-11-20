@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { SelectCheckbox, SelectionBar, useSelection } from '@unisim/sdk';
 import type { Target } from '../lib/arrange';
 import { DragHandle, DropLine, useArrangeDrag } from './arrange';
-import { SelectCheckbox, SelectionBar, useSelection } from './selection';
 import { BinIcon, CheckIcon, EmptyState, ExampleChip, Key, PlusIcon, SyncedChip, btnDanger, plural, btnGhost, btnPrimary, card, confirmAction, exampleBorder, liveBorder } from './ui';
 
 /**

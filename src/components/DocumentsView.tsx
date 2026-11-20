@@ -258,7 +258,7 @@ export default function DocumentsView() {
       <div className="min-w-0 space-y-4">
         <div className="flex flex-wrap items-center gap-2">
           {newButton}
-          <div className="relative order-last w-full sm:order-none sm:w-auto sm:max-w-xs sm:flex-1">
+          <div className="relative order-last w-full sm:order-none sm:w-auto sm:min-w-[12rem] sm:max-w-xs sm:flex-1">
             <input className={`${inputCls} pr-10`} placeholder="Search number, client, subject" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search" />
             <DateFilterButton range={dates} onChange={setDates} />
           </div>

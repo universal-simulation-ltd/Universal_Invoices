@@ -567,8 +567,22 @@ export const useAppStore = create<AppState>((set, get) => {
         companies: wants('companies', s.companies) ? [company] : [],
         clients: wants('clients', s.clients) ? [client] : [],
         products: wants('products', s.products) ? [product] : [],
-        documents: table === 'documents' ? [doc] : [],
+        documents: [] as InvoiceDoc[],
       };
+      // The example document must point at a company that exists. When the
+      // list already has one (the companies example, say), the fresh example
+      // company above isn't written, so it hangs on to the one that is: until
+      // 2026-11-20 it kept the unwritten id, and Duplicate found no company
+      // and quietly did nothing. Same for the client (its snapshot stays).
+      if (table === 'documents') {
+        const issuer = write.companies.length ? company : s.companies.find((c) => c.example) ?? s.companies[0];
+        const buyer = write.clients.length ? client : s.clients.find((c) => c.example);
+        write.documents = [{
+          ...doc,
+          companyId: issuer?.id ?? doc.companyId,
+          ...(buyer ? { clientId: buyer.id } : { clientId: undefined }),
+        }];
+      }
       set({
         companies: [...s.companies, ...write.companies],
         clients: [...s.clients, ...write.clients],

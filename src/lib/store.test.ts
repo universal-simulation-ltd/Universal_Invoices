@@ -56,3 +56,24 @@ describe('bringing the catalogue back on its own', () => {
     expect(s.companies).toEqual([]);
   });
 });
+
+describe('the documents example after the companies example', () => {
+  it('points at the company that exists, so Duplicate copies it', async () => {
+    const { useAppStore } = await import('../stores/appStore');
+    await useAppStore.getState().init('account-example');
+    await useAppStore.getState().loadExample('companies');
+    await useAppStore.getState().loadExample('documents');
+    let s = useAppStore.getState();
+    expect(s.companies).toHaveLength(1);
+    expect(s.documents).toHaveLength(1);
+    expect(s.documents[0].companyId).toBe(s.companies[0].id);
+    const exampleId = s.documents[0].id;
+    await useAppStore.getState().duplicateMany([exampleId]);
+    s = useAppStore.getState();
+    // A real copy is made, and the example goes (an example never sits
+    // beside a real row of its kind). Before the fix nothing happened at all.
+    expect(s.documents).toHaveLength(1);
+    expect(s.documents[0].id).not.toBe(exampleId);
+    expect(s.documents[0].example).toBeFalsy();
+  });
+});

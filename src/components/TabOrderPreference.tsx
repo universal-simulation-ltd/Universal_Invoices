@@ -1,70 +1,41 @@
-import { useRef, useState, type PointerEvent } from 'react';
-import { moveTab, tabLabel } from '../lib/tabs';
+import { TabOrderList } from '@unisim/sdk';
+import { MAIN_TAB, tabLabel } from '../lib/tabs';
+import { useInvoicesSettings } from '../stores/invoicesSettings';
 import type { Tab } from '../stores/appStore';
 
 /**
  * Tune this app ▸ Tab order: the order the tab bar takes from a drag, for
  * anybody who cannot drag it there (the suite's tab rule). Each row has a
- * grip to drag (mouse or finger) and Move up / Move down buttons. Reset to
- * defaults puts it back. BlackBook's TabOrderPreference is the model.
+ * grip to drag (mouse or finger) and Move up / Move down buttons.
+ *
+ * The eye on each row hides or shows that tab (the suite rule, BRANDING.md ▸
+ * "Show and hide tabs with an eye, in Tab order", James 2026-11-21): open =
+ * shown, struck through = hidden. A hidden tab leaves the bar and drops to the
+ * greyed Hidden group at the bottom, in the order they were hidden; shown
+ * again it comes back at the bottom of the shown tabs. Documents, the main
+ * tab, has no eye. Switch and order are saved in one write to the synced Tune
+ * store, so they follow the account together; Reset to defaults shows every
+ * tab in the app's own order again. The list itself is the SDK's
+ * (`<TabOrderList>`, eye since 0.236.0).
  */
 export default function TabOrderPreference({ order, onOrder }: { order: Tab[]; onOrder: (order: Tab[]) => void }) {
-  const list = useRef<HTMLOListElement>(null);
-  const [held, setHeld] = useState<Tab | null>(null);
-  const move = (tab: Tab, to: number) => onOrder(moveTab(order, tab, to));
-
-  // Captured to the LIST, which never moves: a row dragged down is re-inserted
-  // by React, and a captured node that moves loses the capture (the drag
-  // stopped after one place).
-  const grip = (tab: Tab) => ({
-    onPointerDown: (e: PointerEvent<HTMLSpanElement>) => {
-      e.preventDefault();
-      list.current?.setPointerCapture(e.pointerId);
-      setHeld(tab);
-    },
-  });
-  const onMove = (e: PointerEvent<HTMLOListElement>) => {
-    if (!held) return;
-    const rows = [...(list.current?.children ?? [])] as HTMLElement[];
-    const at = rows.findIndex((r) => {
-      const b = r.getBoundingClientRect();
-      return e.clientY >= b.top && e.clientY <= b.bottom;
-    });
-    if (at >= 0 && order[at] !== held) move(held, at);
-  };
-
-  const arrow = 'h-9 w-9 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100';
+  const hidden = useInvoicesSettings((s) => s.hiddenTabs);
   return (
-    <fieldset className="py-2">
-      <legend className="text-[13px] font-semibold text-slate-800 dark:text-slate-200">Tab order</legend>
-      <p className="mb-2 mt-0.5 text-xs text-slate-500 dark:text-slate-400">Drag a tab along the bar, or move it here.</p>
-      <ol ref={list} className="space-y-1" onPointerMove={onMove} onPointerUp={() => setHeld(null)} onPointerCancel={() => setHeld(null)}>
-        {order.map((tab, i) => (
-          <li
-            key={tab}
-            className={`flex min-h-[44px] items-center gap-2 rounded-lg border px-2 ${
-              held === tab ? 'border-orange-500 bg-orange-500/10' : 'border-slate-200 dark:border-slate-700'
-            }`}
-          >
-            <span
-              {...grip(tab)}
-              aria-hidden
-              className="flex h-9 w-7 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-            >
-              <svg viewBox="0 0 10 16" width="10" height="16" fill="currentColor">
-                {[2, 8, 14].flatMap((cy) => [<circle key={`a${cy}`} cx="2.5" cy={cy} r="1.5" />, <circle key={`b${cy}`} cx="7.5" cy={cy} r="1.5" />])}
-              </svg>
-            </span>
-            <span className="min-w-0 flex-1 truncate text-sm text-slate-800 dark:text-slate-200">{tabLabel(tab)}</span>
-            <button type="button" className={arrow} aria-label={`Move ${tabLabel(tab)} up`} disabled={i === 0} onClick={() => move(tab, i - 1)}>
-              ↑
-            </button>
-            <button type="button" className={arrow} aria-label={`Move ${tabLabel(tab)} down`} disabled={i === order.length - 1} onClick={() => move(tab, i + 1)}>
-              ↓
-            </button>
-          </li>
-        ))}
-      </ol>
-    </fieldset>
+    <TabOrderList<Tab>
+      className="py-2"
+      order={order}
+      onChange={onOrder}
+      label={tabLabel}
+      hidden={(tab) => hidden.includes(tab)}
+      canHide={(tab) => tab !== MAIN_TAB}
+      onHiddenChange={(tab, hide, next) =>
+        useInvoicesSettings.set({
+          tabOrder: next,
+          hiddenTabs: hide ? [...hidden.filter((t) => t !== tab), tab] : hidden.filter((t) => t !== tab),
+        })
+      }
+      // The SDK's line speaks of a Tune tab on the bar; Invoices' Tune is in the header.
+      note={`Drag a tab along the bar, or move it here. The eye hides or shows a tab; ${tabLabel(MAIN_TAB)} always shows.`}
+    />
   );
 }

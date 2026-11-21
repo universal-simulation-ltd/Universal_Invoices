@@ -35,15 +35,20 @@ function fakeIo(rows: Record<string, unknown>, seed: Record<string, string> = {}
 describe('normaliseInvoicesSettings', () => {
   it('fills in the defaults: the app’s own tab order, Hide invoices off', () => {
     expect(normaliseInvoicesSettings(undefined)).toEqual(INVOICES_SETTINGS_DEFAULTS);
-    expect(normaliseInvoicesSettings('junk')).toEqual({ tabOrder: null, hideInvoices: false });
+    expect(normaliseInvoicesSettings('junk')).toEqual({ tabOrder: null, hiddenTabs: [], hideInvoices: false });
     expect(INVOICES_SETTINGS_DEFAULTS.hideInvoices).toBe(false);
   });
   it('makes a stored order whole and keeps only a real true', () => {
     expect(normaliseInvoicesSettings({ tabOrder: ['clients', 'nope', 'clients'], hideInvoices: 'yes' })).toEqual({
       tabOrder: ['clients', 'companies', 'documents', 'catalogue'],
+      hiddenTabs: [],
       hideInvoices: false,
     });
     expect(normaliseInvoicesSettings({ hideInvoices: true }).hideInvoices).toBe(true);
+  });
+  it('a set saved before the eye shows every tab; a hidden list never hides Documents', () => {
+    expect(normaliseInvoicesSettings({ tabOrder: ['catalogue'], hideInvoices: true }).hiddenTabs).toEqual([]);
+    expect(normaliseInvoicesSettings({ hiddenTabs: ['clients', 'documents', 'x', 'clients'] }).hiddenTabs).toEqual(['clients']);
   });
 });
 
@@ -66,7 +71,7 @@ describe('migrateLegacyPrefs (the account’s old row, once)', () => {
   it('a brand-new device: adopts the old row and writes it to the new row, stamped', async () => {
     const { io, storage, writes } = fakeIo({ invoices: { tabOrder: ['catalogue', 'clients'], hideInvoices: true, activeCompany: 'c1' } });
     expect(await migrateLegacyPrefs('u1', io)).toBe('adopted');
-    expect(useInvoicesSettings.getState()).toEqual({ tabOrder: ['catalogue', 'clients', 'companies', 'documents'], hideInvoices: true });
+    expect(useInvoicesSettings.getState()).toEqual({ tabOrder: ['catalogue', 'clients', 'companies', 'documents'], hiddenTabs: [], hideInvoices: true });
     // The values changed here, so the SDK's own change sends them; the stamp is this account's.
     expect(JSON.parse(storage.getItem(STAMP_KEY)!).uid).toBe('u1');
     expect(writes).toEqual([]);
@@ -77,7 +82,7 @@ describe('migrateLegacyPrefs (the account’s old row, once)', () => {
     useInvoicesSettings.set({ hideInvoices: true });
     const { io, storage, writes } = fakeIo({ invoices: { hideInvoices: true } });
     expect(await migrateLegacyPrefs('u1', io)).toBe('adopted');
-    expect(writes).toEqual([{ app: 'tune-app:invoices', data: { at: 1_000, values: { tabOrder: null, hideInvoices: true } } }]);
+    expect(writes).toEqual([{ app: 'tune-app:invoices', data: { at: 1_000, values: { tabOrder: null, hiddenTabs: [], hideInvoices: true } } }]);
     expect(JSON.parse(storage.getItem(STAMP_KEY)!)).toEqual({ at: 1_000, uid: 'u1' });
   });
 

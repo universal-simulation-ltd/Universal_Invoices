@@ -1,5 +1,5 @@
 import { createSyncedSettings, parseSettingsRow, settingsRowApp } from '@unisim/sdk';
-import { normaliseOrder } from '../lib/tabs';
+import { normaliseHidden, normaliseOrder } from '../lib/tabs';
 import type { Tab } from './appStore';
 
 // Invoices' own rows in Tune this app, on the device and — signed in — on the
@@ -25,19 +25,27 @@ import type { Tab } from './appStore';
 // companies rather than Tune, and the French e-invoicing note's "Got it".
 //
 // ⚠️ Never change a default here: a device that never changed anything shows
-// the defaults. Hide invoices starts unticked, like every switch in the suite.
+// the defaults. Hide invoices starts unticked, like every switch in the suite,
+// and every tab starts shown.
 
 export const PRODUCT = 'invoices';
 
 export interface InvoicesSettings {
   /** Tune ▸ Tab order (or a drag along the bar). `null` = the app's own order. */
   tabOrder: Tab[] | null;
+  /**
+   * Tune ▸ Tab order's eye (2026-11-21): the tabs hidden from the bar. Never
+   * Documents, the main tab. Added after the store shipped: a set saved
+   * before has none, which reads as every tab shown — what it was.
+   */
+  hiddenTabs: Tab[];
   /** Tune ▸ "Hide invoices" (shownKinds.ts). */
   hideInvoices: boolean;
 }
 
 export const INVOICES_SETTINGS_DEFAULTS: InvoicesSettings = {
   tabOrder: null,
+  hiddenTabs: [],
   hideInvoices: false,
 };
 
@@ -46,6 +54,7 @@ export function normaliseInvoicesSettings(raw: unknown): InvoicesSettings {
   const r = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   return {
     tabOrder: Array.isArray(r.tabOrder) ? normaliseOrder(r.tabOrder) : null,
+    hiddenTabs: normaliseHidden(r.hiddenTabs),
     hideInvoices: r.hideInvoices === true,
   };
 }

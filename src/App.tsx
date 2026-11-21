@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { DefaultViewSelect, UniversalAppsNavBar, UpdateNotice, useDefaultView, useUser, useUserPrefs } from '@unisim/sdk';
+import { DefaultViewSelect, UniversalAppsNavBar, UpdateNotice, useDefaultView, useUser, useUserPrefs, withShownOrder } from '@unisim/sdk';
 import ProductLogo from './components/Header/ProductLogo';
 import AppMenu from './components/Header/AppMenu';
 import CatalogueView from './components/CatalogueView';
@@ -13,7 +13,7 @@ import HideInvoicesPreference from './components/HideInvoicesPreference';
 import { FRENCH_NOTE_SEEN } from './components/shownKinds';
 import { LegacyPrefsMigration } from './components/LegacyPrefsMigration';
 import { useInvoicesSettings } from './stores/invoicesSettings';
-import { DOCUMENTS_VIEWS, normaliseOrder, TAB_VALUES, TABS } from './lib/tabs';
+import { DOCUMENTS_VIEWS, homeFallback, normaliseOrder, shownTabs, TABS } from './lib/tabs';
 import { OrgSync } from './components/OrgSync';
 import CloudBackup from './components/CloudBackup';
 import SharedDocument from './components/SharedDocument';
@@ -40,11 +40,22 @@ const COMPANY_LINK = new URLSearchParams(location.search).get('company');
 export default function App() {
   const { init, loaded, tab, setTab, openId, documents, notice, dismissNotice } = useAppStore();
   const cloudLine = cloudFooter(useAppStore((s) => s.cloud));
+  // The tab order and the tabs the eye hid are synced Tune settings
+  // (stores/invoicesSettings.ts). The bar shows the rest, in their order.
+  const tabOrder = normaliseOrder(useInvoicesSettings((s) => s.tabOrder));
+  const hiddenTabs = useInvoicesSettings((s) => s.hiddenTabs);
+  const shown = shownTabs(tabOrder, hiddenTabs);
+  // A drag along the bar moves only the shown tabs; the hidden ones keep their slots.
+  const setTabOrder = (order: Tab[]) => useInvoicesSettings.set({ tabOrder: withShownOrder(tabOrder, order) });
   // Opens on Your companies until the person picks otherwise (James,
   // 2026-11-10: "it should open on companies by default but then the user can
   // choose which it should open on after that"): double-tap a tab, or Opens on
-  // in Tune this app. Reset to defaults comes back here.
-  const homeTab = useDefaultView<Tab>('home-tab', 'companies', { views: TAB_VALUES });
+  // in Tune this app. Reset to defaults comes back here. Only a SHOWN tab can
+  // be where it opens: a chosen one that is hidden now gives way to Your
+  // companies (or the first tab on the bar, with that hidden too) until it is
+  // shown again.
+  const homeFallbackTab = homeFallback(shown);
+  const homeTab = useDefaultView<Tab>('home-tab', homeFallbackTab, { views: shown });
   const openDoc = openId ? documents.find((d) => d.id === openId) : undefined;
   // The French note's "Got it" lives in useUserPrefs; Reset to defaults clears it.
   const { setPref } = useUserPrefs();
@@ -52,9 +63,6 @@ export default function App() {
   // and its dropdowns are inline-styled, so without it they stay light in a
   // dark app while AppMenu's rows go dark.
   const theme = useThemeStore((s) => s.effective);
-  // The tab order is a synced Tune setting (stores/invoicesSettings.ts).
-  const tabOrder = normaliseOrder(useInvoicesSettings((s) => s.tabOrder));
-  const setTabOrder = (order: Tab[]) => useInvoicesSettings.set({ tabOrder: order });
 
   // Each Universal ID has its own rows in this browser, and signed out has
   // its own (lib/store.ts): signing in, out or across loads that account's.
@@ -78,6 +86,16 @@ export default function App() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [init, loading, account]);
+  // The tab on screen just hidden by the eye: off to where the app opens. Only
+  // at that moment — "Manage companies" or a new document's company form may
+  // still open a hidden tab's page on purpose.
+  const lastHidden = useRef(hiddenTabs);
+  useEffect(() => {
+    const was = lastHidden.current;
+    lastHidden.current = hiddenTabs;
+    if (hiddenTabs.includes(tab) && !was.includes(tab)) setTab(homeTab.defaultView);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hiddenTabs]);
 
   return (
     // pb-[var(--u-dock-space)]: on a phone the section tabs dock at the foot of
@@ -95,15 +113,18 @@ export default function App() {
         themeStore={useThemeStore}
         appPreferences={
           <>
-            <DefaultViewSelect id="home-tab" label="Opens on" fallback="companies" views={TABS} />
+            {/* Only the tabs on the bar: a hidden tab cannot be where it opens. */}
+            <DefaultViewSelect id="home-tab" label="Opens on" fallback={homeFallbackTab} views={TABS.filter((t) => shown.includes(t.value))} />
             {/* The Documents sidebar's twin of the double tap. */}
             <DefaultViewSelect id="documents-kind" label="Documents shows" fallback="all" views={DOCUMENTS_VIEWS} />
-            <TabOrderPreference order={tabOrder} onOrder={setTabOrder} />
+            {/* The order, and the eye that hides and shows each tab. */}
+            <TabOrderPreference order={tabOrder} onOrder={(order) => useInvoicesSettings.set({ tabOrder: order })} />
             <HideInvoicesPreference />
           </>
         }
         // The SDK resets its own (Opens on, Documents shows, theme, language)
-        // and every synced store (tab order, Hide invoices); the note is ours.
+        // and every synced store (tab order, hidden tabs, Hide invoices); the
+        // note is ours.
         onResetDefaults={() => {
           setPref(FRENCH_NOTE_SEEN, null);
         }}
@@ -140,7 +161,7 @@ export default function App() {
           // rule); "Opens on" in Tune this app is the same choice for anybody
           // who cannot double-tap, and Reset to defaults clears it. A drag
           // moves a tab (TabBar).
-          <TabBar order={tabOrder} onOrder={setTabOrder} tab={tab} onTab={setTab} homeTab={homeTab} />
+          <TabBar order={shown} onOrder={setTabOrder} tab={tab} onTab={setTab} homeTab={homeTab} />
         )}
 
         {!loaded ? null : openDoc ? (

@@ -4,6 +4,12 @@
 // drag). The order is a Tune setting, kept in the synced Tune store
 // (stores/invoicesSettings.ts) so it follows the account; Reset to defaults
 // puts this order back.
+//
+// Which tabs show is a Tune setting too (the suite's eye rule, BRANDING.md ▸
+// "Show and hide tabs with an eye, in Tab order", James 2026-11-21): the eye
+// on each Tab order row hides or shows a tab. Documents is where the work is
+// made — every "New …", every open document lands there — so it is the main
+// tab: always shown, no eye.
 
 import type { Tab } from '../stores/appStore';
 import { KIND_ORDER, kindPlural, type BusinessDocKind } from './types';
@@ -21,6 +27,30 @@ export const tabLabel = (tab: Tab) => TABS.find((t) => t.value === tab)!.label;
 export function normaliseOrder(raw: unknown): Tab[] {
   const known = Array.isArray(raw) ? raw.filter((t, i): t is Tab => TAB_VALUES.includes(t as Tab) && raw.indexOf(t) === i) : [];
   return [...known, ...TAB_VALUES.filter((t) => !known.includes(t))];
+}
+
+/** The main tab: always on the bar, never given an eye. */
+export const MAIN_TAB: Tab = 'documents';
+
+/** A stored list of hidden tabs made safe: known tabs only, each once, never the main tab. */
+export function normaliseHidden(raw: unknown): Tab[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((t, i): t is Tab => TAB_VALUES.includes(t as Tab) && t !== MAIN_TAB && raw.indexOf(t) === i);
+}
+
+/** The tabs the bar shows, in their order. Never empty: the main tab always shows. */
+export function shownTabs(order: Tab[], hidden: readonly Tab[]): Tab[] {
+  return order.filter((t) => !hidden.includes(t));
+}
+
+/**
+ * Where the app opens when nothing (shown) was chosen: Your companies, the
+ * app's own default (James, 2026-11-10) — or, with that tab hidden, the first
+ * tab on the bar. A chosen default that is hidden now falls back here too, and
+ * comes back when its tab is shown again.
+ */
+export function homeFallback(shown: Tab[]): Tab {
+  return shown.includes('companies') ? 'companies' : shown[0] ?? MAIN_TAB;
 }
 
 /** `tab` moved to index `to`. */

@@ -111,7 +111,11 @@ Part of the [Universal Apps](https://opensource.unisim.co.uk) suite, at
   document follows the same order, grouped by folder; the spreadsheet has a
   Folder column.
 - **Tabs in your order:** drag a tab along the bar (on a phone, hold it first),
-  or use Tune this app → Tab order. It follows your account when signed in.
+  or use Tune this app → Tab order. The eye on each row there hides a tab from
+  the bar (struck through) or shows it again: hidden tabs wait, greyed, at the
+  bottom of the list, and one shown again joins the end of the bar. Documents
+  always shows; Opens on offers only the tabs on the bar. It follows your
+  account when signed in, and Reset to defaults shows every tab again.
 - **Spreadsheets in and out:** export one item, a selection or everything to an
   `.xlsx` workbook (Companies, Clients, Catalogue, Documents, Lines, plus a Read
   me sheet) — a company brings its documents, a document brings its company,
@@ -129,7 +133,7 @@ back up from Advanced.
 
 Signing in with a Universal ID is optional. It brings your Tuning and lets you
 name the app ("Bradley's Invoices", the product's name, or your own) in Tune
-this app; that choice, the rest of Tune this app (tab order, Hide invoices,
+this app; that choice, the rest of Tune this app (tab order and hidden tabs, Hide invoices,
 Opens on; the newest change wins) and your Call me name are kept on your
 Universal ID. If
 your Universal ID belongs to a company, that company appears in Your companies
